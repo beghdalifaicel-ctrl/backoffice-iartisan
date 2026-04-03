@@ -27,11 +27,16 @@ export default function AdminDashboard() {
   // Fetch data
   useEffect(() => {
     Promise.all([
-      fetch("/api/stats").then(r => r.json()),
-      fetch("/api/clients").then(r => r.json()),
-      fetch("/api/leads").then(r => r.json()),
+      fetch("/api/stats").then(r => r.ok ? r.json() : null),
+      fetch("/api/clients").then(r => r.ok ? r.json() : { clients: [] }),
+      fetch("/api/leads").then(r => r.ok ? r.json() : { leads: [] }),
     ]).then(([s, c, l]) => {
-      setStats(s);
+      setStats(s && s.plans ? s : {
+        clients: { total: 0, active: 0, trial: 0, churned: 0, pastDue: 0 },
+        revenue: { mrr: 0, arr: 0, arpu: 0, thisMonth: 0, unpaidCount: 0, unpaidAmount: 0 },
+        plans: { ESSENTIEL: 0, CROISSANCE: 0, PILOTE_AUTO: 0 },
+        leads: { thisMonth: 0, lastMonth: 0, total: 0, byStatus: {}, conversionRate: 0 },
+      });
       setClients(c.clients || []);
       setLeads(l.leads || []);
       setLoading(false);
