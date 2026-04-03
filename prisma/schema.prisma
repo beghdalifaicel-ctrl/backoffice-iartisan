@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── CLIENTS (artisans abonnés) ──────────────────────────────────────────────
+
+model Client {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Identité
+  firstName     String
+  lastName      String
+  email         String   @unique
+  phone         String?
+
+  // Entreprise
+  company       String
+  metier        String          // plombier, electricien, etc.
+  siret         String?
+  ville         String
+  codePostal    String?
+  adresse       String?
+
+  // Abonnement
+  plan          Plan     @default(ESSENTIEL)
+  status        ClientStatus @default(TRIAL)
+  trialEndsAt   DateTime?
+
+  // Stripe
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+
+  // Google Business
+  googleBusinessUrl    String?
+  googleRating         Float?
+  googleReviewCount    Int      @default(0)
+
+  // Site vitrine
+  siteUrl              String?
+  sitePublished        Boolean  @default(false)
+
+  // Relations
+  leads       Lead[]
+  invoices    Invoice[]
+  messages    Message[]
+  avis        Avis[]
+
+  @@map("clients")
+}
+
+enum Plan {
+  ESSENTIEL
+  CROISSANCE
+  PILOTE_AUTO
+}
+
+enum ClientStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CHURNED
+  PAUSED
+}
+
+// ─── LEADS (prospects des artisans) ──────────────────────────────────────────
+
+model Lead {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  // Contact
+  name        String
+  phone       String?
+  email       String?
+
+  // Besoin
+  type        String          // "Dépannage", "Installation", "Rénovation"...
+  message     String?
+
+  // Source
+  source      LeadSource @default(FORM)
+
+  // Suivi
+  status      LeadStatus @default(NEW)
+  notes       String?
+
+  // Client artisan qui reçoit ce lead
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+
+  @@map("leads")
+}
+
+enum LeadSource {
+  GOOGLE_ADS
+  GOOGLE_BUSINESS
+  SITE_VITRINE
+  FORM
+  WHATSAPP
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  RDV_BOOKED
+  WON
+  LOST
+}
+
+// ─── FACTURES ────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+
+  number        String   @unique    // FAC-2026-001
+  amount        Int                 // en centimes
+  status        InvoiceStatus @default(PENDING)
+  paidAt        DateTime?
+
+  // Stripe
+  stripeInvoiceId String? @unique
+  stripePaymentUrl String?
+
+  // Client
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id])
+
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  PAST_DUE
+  VOID
+}
+
+// ─── AVIS GOOGLE ─────────────────────────────────────────────────────────────
+
+model Avis {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  authorName  String
+  rating      Int         // 1-5
+  text        String?
+  replied     Boolean  @default(false)
+  replyText   String?
+
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+
+  @@map("avis")
+}
+
+// ─── MESSAGES (chat conseiller ↔ client) ─────────────────────────────────────
+
+model Message {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  content     String
+  fromAdmin   Boolean  @default(false)  // true = conseiller, false = client
+  read        Boolean  @default(false)
+
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+
+  @@map("messages")
+}
+
+// ─── LEADS FORMULAIRE SITE (avant d'avoir un client assigné) ─────────────────
+
+model SiteLead {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  // Artisan qui s'inscrit sur iartisan.io
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  company     String
+  metier      String
+  ville       String
+
+  // Offre choisie
+  plan        Plan     @default(ESSENTIEL)
+
+  // Suivi
+  status      SiteLeadStatus @default(NEW)
+  notes       String?
+  convertedToClientId String?
+
+  @@map("site_leads")
+}
+
+enum SiteLeadStatus {
+  NEW
+  CONTACTED
+  DEMO_BOOKED
+  CONVERTED
+  LOST
+}
