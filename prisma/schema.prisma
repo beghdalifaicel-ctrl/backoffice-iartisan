@@ -189,9 +189,10 @@ model SiteLead {
   lastName    String
   email       String
   phone       String?
-  company     String
+  company     String?
   metier      String
   ville       String
+  source      String?
 
   // Offre choisie
   plan        Plan     @default(ESSENTIEL)

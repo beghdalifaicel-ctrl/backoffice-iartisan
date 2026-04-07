@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// CORS headers for cross-origin requests from iartisan.io
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+// OPTIONS /api/leads — Preflight CORS
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 // POST /api/leads — Formulaire public (depuis iartisan.io ou Google Ads)
 export async function POST(req: NextRequest) {
   try {
@@ -8,8 +20,8 @@ export async function POST(req: NextRequest) {
     const { firstName, lastName, email, phone, company, metier, ville, plan, source } = body;
 
     // Validation
-    if (!firstName || !lastName || !email || !company || !metier || !ville) {
-      return NextResponse.json({ error: "Champs obligatoires manquants" }, { status: 400 });
+    if (!firstName || !lastName || !email || !metier || !ville) {
+      return NextResponse.json({ error: "Champs obligatoires manquants" }, { status: 400, headers: corsHeaders });
     }
 
     const lead = await prisma.siteLead.create({
@@ -18,10 +30,11 @@ export async function POST(req: NextRequest) {
         lastName,
         email,
         phone: phone || null,
-        company,
+        company: company || `${firstName} ${lastName}`,
         metier,
         ville,
         plan: plan || "ESSENTIEL",
+        source: source || null,
         status: "NEW",
       },
     });
@@ -29,10 +42,10 @@ export async function POST(req: NextRequest) {
     // TODO: Envoyer notification WhatsApp / Email à Faicel
     // TODO: Envoyer email de bienvenue au prospect
 
-    return NextResponse.json({ success: true, id: lead.id }, { status: 201 });
+    return NextResponse.json({ success: true, id: lead.id }, { status: 201, headers: corsHeaders });
   } catch (error: any) {
     console.error("Erreur création lead:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500, headers: corsHeaders });
   }
 }
 
