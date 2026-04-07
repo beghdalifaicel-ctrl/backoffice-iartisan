@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processTaskQueue, recoverStaleTasks } from '@/app/lib/agents/worker';
+import { processTaskQueue, recoverStaleTasks } from '@/lib/agents/worker';
 
 // This endpoint is called by Vercel Cron or an external scheduler
 // Vercel cron config in vercel.json: { "crons": [{ "path": "/api/agents/worker", "schedule": "* * * * *" }] }

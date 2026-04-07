@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listEmails, isGmailConnected } from '@/app/lib/integrations/gmail';
-import { verifyAuth } from '@/app/lib/auth';
+import { listEmails, isGmailConnected } from '@/lib/integrations/gmail';
+import { verifyAuth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const authResult = await verifyAuth(request);

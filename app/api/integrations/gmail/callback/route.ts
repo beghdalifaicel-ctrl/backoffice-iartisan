@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exchangeGmailCode } from '@/app/lib/integrations/gmail';
+import { exchangeGmailCode } from '@/lib/integrations/gmail';
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');

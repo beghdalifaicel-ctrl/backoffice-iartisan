@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { orchestrator } from '@/app/lib/agents/orchestrator';
-import { AgentType } from '@/app/lib/agents/types';
-import { verifyAuth } from '@/app/lib/auth';
+import { orchestrator } from '@/lib/agents/orchestrator';
+import { AgentType } from '@/lib/agents/types';
+import { verifyAuth } from '@/lib/auth';
 
 // POST /api/agents — Submit a new agent task
 export async function POST(request: NextRequest) {
