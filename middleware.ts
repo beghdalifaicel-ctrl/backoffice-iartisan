@@ -12,14 +12,19 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/leads") ||
     pathname.startsWith("/api/webhooks") ||
+    pathname.startsWith("/api/integrations") ||
+    pathname.startsWith("/api/agents/worker") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
   ) {
     return NextResponse.next();
   }
 
-  // Vérifier le token pour /admin et /api (sauf routes publiques ci-dessus)
-  const token = req.cookies.get("ia-session")?.value;
+  // Vérifier le token — cookie OU Bearer header
+  const cookieToken = req.cookies.get("ia-session")?.value;
+  const authHeader = req.headers.get("authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = cookieToken || bearerToken;
 
   if (!token) {
     if (pathname.startsWith("/api/")) {
