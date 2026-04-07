@@ -28,6 +28,26 @@ export async function getSession() {
   return verifyToken(token);
 }
 
+export async function verifyAuth(request: NextRequest) {
+  // Check Authorization header first (Bearer token)
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    return verifyToken(token);
+  }
+  // Fallback to cookie-based session
+  const cookieToken = request.cookies.get("ia-session")?.value;
+  if (cookieToken) {
+    return verifyToken(cookieToken);
+  }
+  // Check query param for cron secret
+  const cronSecret = request.nextUrl.searchParams.get("secret");
+  if (cronSecret && cronSecret === process.env.CRON_SECRET) {
+    return { email: "system@iartisan.io", role: "admin" };
+  }
+  return null;
+}
+
 export async function requireAdmin() {
   const session = await getSession();
   if (!session || session.role !== "admin") {
