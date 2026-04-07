@@ -20,7 +20,7 @@ export const PLANS = {
     ],
   },
   CROISSANCE: {
-    name: "Croissance",
+    name: "Pro",
     price: 9900,
     priceId: process.env.STRIPE_PRICE_CROISSANCE!,
     setup: 0,
@@ -33,12 +33,12 @@ export const PLANS = {
     ],
   },
   PILOTE_AUTO: {
-    name: "Pilote Auto",
+    name: "Max",
     price: 17900,
     priceId: process.env.STRIPE_PRICE_PILOTE_AUTO!,
     setup: 0,
     features: [
-      "Tout Croissance +",
+      "Tout Pro +",
       "Site 10 pages + blog SEO mensuel",
       "Gestion avis Facebook/Instagram",
       "Rapports hebdomadaires",

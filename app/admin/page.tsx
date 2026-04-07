@@ -46,8 +46,8 @@ export default function AdminDashboard() {
   // Plan distribution for chart
   const planDist = stats ? [
     { name: "Essentiel", value: stats.plans.ESSENTIEL, color: C.muted },
-    { name: "Croissance", value: stats.plans.CROISSANCE, color: C.accent },
-    { name: "Pilote Auto", value: stats.plans.PILOTE_AUTO, color: C.green },
+    { name: "Pro", value: stats.plans.CROISSANCE, color: C.accent },
+    { name: "Max", value: stats.plans.PILOTE_AUTO, color: C.green },
   ] : [];
 
   // ─── BOTTOM NAV ──────────────────────────────────────────────────────────
