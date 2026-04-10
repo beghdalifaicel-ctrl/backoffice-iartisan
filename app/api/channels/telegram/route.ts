@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Handle /start command (Telegram convention)
+  const isVoice = !message.text && (message.voice || message.audio);
   const messageText = text === '/start' ? 'aide' : text;
 
   try {
@@ -85,8 +86,10 @@ export async function POST(request: NextRequest) {
       displayName,
     });
 
+    // Prefix with transcription indicator if from voice
+    const prefix = isVoice ? `🎙️ _"${messageText.substring(0, 80)}${messageText.length > 80 ? '...' : ''}"_\n\n` : '';
     // Send reply via Telegram API
-    await sendTelegramMessage(chatId, response.text);
+    await sendTelegramMessage(chatId, prefix + response.text);
   } catch (err: any) {
     console.error('Telegram webhook error:', err);
     await sendTelegramMessage(chatId, "❌ Une erreur est survenue. Réessayez dans quelques instants.");
@@ -122,15 +125,18 @@ async function transcribeVoiceMessage(fileId: string): Promise<string | null> {
   const audioRes = await fetch(audioUrl);
   const audioBuffer = await audioRes.arrayBuffer();
 
-  // Step 3: Determine file extension from path
+  // Step 3: Determine file extension — Telegram voice notes are .oga (Opus in OGG)
+  // Groq/OpenAI Whisper expect standard extensions, so normalize to .ogg
   const filePath = fileData.result.file_path as string;
-  const ext = filePath.split('.').pop() || 'ogg';
+  const rawExt = filePath.split('.').pop() || 'ogg';
+  const ext = rawExt === 'oga' ? 'ogg' : rawExt;
+  const mimeType = ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : `audio/${ext}`;
 
   // Step 4: Transcribe via Groq Whisper API (free, fast)
   if (GROQ_API_KEY) {
     const formData = new FormData();
-    formData.append('file', new Blob([audioBuffer], { type: `audio/${ext}` }), `voice.${ext}`);
-    formData.append('model', 'whisper-large-v3');
+    formData.append('file', new Blob([audioBuffer], { type: mimeType }), `voice.${ext}`);
+    formData.append('model', 'whisper-large-v3-turbo');
     formData.append('language', 'fr');
     formData.append('response_format', 'text');
 
@@ -144,10 +150,12 @@ async function transcribeVoiceMessage(fileId: string): Promise<string | null> {
 
     if (transcriptRes.ok) {
       const transcription = await transcriptRes.text();
+      console.log('Groq transcription OK:', transcription.substring(0, 100));
       return transcription.trim() || null;
     }
 
-    console.error('Groq transcription failed:', await transcriptRes.text());
+    const groqError = await transcriptRes.text();
+    console.error('Groq transcription failed:', transcriptRes.status, groqError);
   }
 
   // Fallback: if no Groq key, try OpenAI Whisper
