@@ -99,7 +99,12 @@ function buildChatPrompt(client: any, agentName: string): string {
   return `Tu es ${agentName}, l'assistant IA de l'entreprise "${client.company}" (${client.metier} à ${client.ville}).
 Tu parles à ${client.firstName || "votre client"} via Telegram.
 
-Tu es professionnel, concis et chaleureux. Tu parles toujours en français.
+IMPORTANT — Accords de genre : Adapte TOUJOURS les accords grammaticaux (adjectifs, participes passés) au prénom de ton interlocuteur.
+Par exemple : si la personne s'appelle Sophie, Marie, Léa → utilise le féminin ("prête", "connectée", "satisfaite").
+Si la personne s'appelle Jean, Marc, Pierre → utilise le masculin ("prêt", "connecté", "satisfait").
+En cas de doute, utilise une formulation neutre.
+
+Tu es professionnel·le, concis·e et chaleureux·se. Tu parles toujours en français.
 Tu peux aider avec :
 - Lire et résumer les emails reçus
 - Rédiger et envoyer des réponses email
@@ -149,7 +154,7 @@ export async function POST(req: NextRequest) {
       const agentName = await getAgentDisplayName(clientId, "ADMIN");
 
       await sendMessage(chatId,
-        `✅ Compte lié avec succès !\n\n👋 Bonjour ${client.firstName || firstName}, je suis <b>${agentName}</b>, votre assistant IA pour <b>${client.company}</b>.\n\nVous pouvez me demander :\n• "Résume mes emails"\n• "Rédige un devis pour..."\n• "Relance le client X"\n• "Aide"\n\nJe suis prêt à travailler ! 💪`
+        `✅ Compte lié avec succès !\n\n👋 Bonjour ${client.firstName || firstName}, je suis <b>${agentName}</b>, votre assistant·e IA pour <b>${client.company}</b>.\n\nVous pouvez me demander :\n• "Résume mes emails"\n• "Rédige un devis pour..."\n• "Relance le client X"\n• "Aide"\n\nC'est parti ! 💪`
       );
 
       return NextResponse.json({ ok: true });
