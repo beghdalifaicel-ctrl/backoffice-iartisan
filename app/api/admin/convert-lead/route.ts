@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { sendWelcomeEmail } from "@/lib/email";
 
 // POST /api/admin/convert-lead — Convertit un SiteLead en Client
 export async function POST(req: NextRequest) {
@@ -61,6 +62,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Envoyer l'email de bienvenue avec les identifiants
+    await sendWelcomeEmail(client.email, {
+      firstName: client.firstName,
+      tempPassword,
+      plan: client.plan,
+    });
+
     return NextResponse.json({
       success: true,
       client: {
@@ -71,10 +79,9 @@ export async function POST(req: NextRequest) {
         company: client.company,
         plan: client.plan,
       },
-      // Mot de passe temporaire — à communiquer manuellement au client
       tempPassword,
-      loginUrl: `https://backoffice-iartisan.vercel.app/client/login`,
-      message: `Compte créé. Communiquez ces identifiants au client : ${client.email} / ${tempPassword}`,
+      loginUrl: `https://app.iartisan.io/client/login`,
+      message: `Compte créé. Un email avec les identifiants a été envoyé à ${client.email}.`,
     });
   } catch (error: any) {
     if (error.message === "Unauthorized") {

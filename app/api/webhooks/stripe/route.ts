@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import Stripe from "stripe";
+import { sendSubscriptionActiveEmail, sendTrialEndingEmail, sendAdminNotification } from "@/lib/email";
 
 // Désactiver le body parsing Next.js (Stripe a besoin du raw body)
 export const runtime = "nodejs";
@@ -47,6 +48,28 @@ export async function POST(req: NextRequest) {
               clientId: client.id,
             },
           });
+
+          // Email de confirmation d'abonnement au client
+          const planNames: Record<string, string> = { ESSENTIEL: "Essentiel", CROISSANCE: "Pro", PILOTE_AUTO: "Max" };
+          const planPrices: Record<string, string> = { ESSENTIEL: "49", CROISSANCE: "99", PILOTE_AUTO: "179" };
+          await sendSubscriptionActiveEmail(client.email, {
+            firstName: client.firstName,
+            plan: planNames[client.plan] || client.plan,
+            amount: planPrices[client.plan] || "49",
+          });
+
+          // Notification admin
+          await sendAdminNotification(`Paiement reçu - ${client.company}`, {
+            title: "Nouveau paiement Stripe",
+            details: {
+              "Client": `${client.firstName} ${client.lastName}`,
+              "Entreprise": client.company,
+              "Montant": `${(invoice.amount_paid / 100).toFixed(2)}€`,
+              "Plan": planNames[client.plan] || client.plan,
+            },
+            ctaLabel: "Voir le dashboard",
+            ctaUrl: "https://app.iartisan.io/admin",
+          });
         }
         break;
       }
@@ -58,6 +81,21 @@ export async function POST(req: NextRequest) {
           where: { stripeCustomerId: invoice.customer as string },
           data: { status: "PAST_DUE" },
         });
+
+        // Alerte admin
+        const failedClient = await prisma.client.findFirst({ where: { stripeCustomerId: invoice.customer as string } });
+        if (failedClient) {
+          await sendAdminNotification(`Paiement échoué - ${failedClient.company}`, {
+            title: "Paiement Stripe échoué",
+            details: {
+              "Client": `${failedClient.firstName} ${failedClient.lastName}`,
+              "Email": failedClient.email,
+              "Montant": `${(invoice.amount_due / 100).toFixed(2)}€`,
+            },
+            ctaLabel: "Voir dans Stripe",
+            ctaUrl: `https://dashboard.stripe.com/invoices/${invoice.id}`,
+          });
+        }
         break;
       }
 
@@ -71,11 +109,18 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      // ─── Essai terminé ───
+      // ─── Essai terminé (J-3) ───
       case "customer.subscription.trial_will_end": {
         const sub = event.data.object as Stripe.Subscription;
-        // TODO: Envoyer un email / WhatsApp de rappel au client
-        console.log(`Trial ending soon for subscription: ${sub.id}`);
+        const trialClient = await prisma.client.findFirst({ where: { stripeSubscriptionId: sub.id } });
+        if (trialClient) {
+          const planNames: Record<string, string> = { ESSENTIEL: "Essentiel", CROISSANCE: "Pro", PILOTE_AUTO: "Max" };
+          await sendTrialEndingEmail(trialClient.email, {
+            firstName: trialClient.firstName,
+            daysLeft: 3,
+            plan: planNames[trialClient.plan] || trialClient.plan,
+          });
+        }
         break;
       }
 

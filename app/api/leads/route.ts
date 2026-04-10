@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { sendAdminNotification } from "@/lib/email";
 
 // CORS headers for cross-origin requests from iartisan.io
 const corsHeaders = {
@@ -39,8 +40,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // TODO: Envoyer notification WhatsApp / Email à Faicel
-    // TODO: Envoyer email de bienvenue au prospect
+    // Notification admin : nouveau prospect
+    await sendAdminNotification(`Nouveau prospect - ${firstName} ${lastName}`, {
+      title: "Nouveau prospect iArtisan",
+      details: {
+        "Nom": `${firstName} ${lastName}`,
+        "Email": email,
+        "Téléphone": phone || "Non renseigné",
+        "Métier": metier,
+        "Ville": ville,
+        "Plan souhaité": plan || "Essentiel",
+        "Source": source || "Direct",
+      },
+      ctaLabel: "Voir les leads",
+      ctaUrl: "https://app.iartisan.io/admin",
+    });
 
     return NextResponse.json({ success: true, id: lead.id }, { status: 201, headers: corsHeaders });
   } catch (error: any) {

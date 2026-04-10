@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { sendPasswordResetEmail } from "@/lib/email";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,8 +46,11 @@ export async function POST(req: NextRequest) {
       data: { passwordHash },
     });
 
-    // TODO: Envoyer l'email avec le nouveau mot de passe quand Resend sera configuré
-    // Pour l'instant, le nouveau mdp est visible dans la table password_resets (admin)
+    // Envoyer l'email avec le nouveau mot de passe
+    await sendPasswordResetEmail(client.email, {
+      firstName: client.firstName,
+      newPassword,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
