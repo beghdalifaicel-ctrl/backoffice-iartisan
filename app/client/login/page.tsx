@@ -106,7 +106,13 @@ export default function ClientLoginPage() {
           </button>
         </form>
 
-        <p style={{ textAlign: "center", color: T.muted, fontSize: 12, marginTop: 24, marginBottom: 0 }}>
+        <p style={{ textAlign: "center", marginTop: 16, marginBottom: 0 }}>
+          <a href="/client/forgot-password" style={{ color: T.muted, fontSize: 13, textDecoration: "none" }}>
+            Mot de passe oublié ?
+          </a>
+        </p>
+
+        <p style={{ textAlign: "center", color: T.muted, fontSize: 12, marginTop: 16, marginBottom: 0 }}>
           Espace r&eacute;serv&eacute; aux clients iArtisan.io
         </p>
       </div>
