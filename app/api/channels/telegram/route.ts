@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleChannelMessage } from '@/lib/channels/handler';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const GROQ_API_KEY = process.env.GROQ_API_KEY; // For Whisper transcription (free tier)
 
 // Telegram sends updates as POST
 export async function POST(request: NextRequest) {
@@ -28,13 +29,49 @@ export async function POST(request: NextRequest) {
 
   // Extract message (could be a regular message or an edited message)
   const message = update.message || update.edited_message;
-  if (!message || !message.text) {
-    return NextResponse.json({ ok: true }); // Ignore non-text messages
+  if (!message) {
+    return NextResponse.json({ ok: true });
   }
 
   const chatId = String(message.chat.id);
-  const text = message.text;
   const displayName = [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ');
+
+  // Handle voice messages — transcribe then process as text
+  let text = message.text;
+  if (!text && message.voice) {
+    try {
+      text = await transcribeVoiceMessage(message.voice.file_id);
+      if (!text) {
+        await sendTelegramMessage(chatId, "🎙️ Je n'ai pas réussi à transcrire votre vocal. Réessayez ou envoyez un message texte.");
+        return NextResponse.json({ ok: true });
+      }
+    } catch (err: any) {
+      console.error('Voice transcription error:', err);
+      await sendTelegramMessage(chatId, "🎙️ Erreur de transcription du vocal. Envoyez un message texte en attendant.");
+      return NextResponse.json({ ok: true });
+    }
+  }
+
+  // Also handle audio files (not just voice notes)
+  if (!text && message.audio) {
+    try {
+      text = await transcribeVoiceMessage(message.audio.file_id);
+      if (!text) {
+        await sendTelegramMessage(chatId, "🎙️ Je n'ai pas réussi à transcrire votre audio. Réessayez ou envoyez un message texte.");
+        return NextResponse.json({ ok: true });
+      }
+    } catch (err: any) {
+      console.error('Audio transcription error:', err);
+      await sendTelegramMessage(chatId, "🎙️ Erreur de transcription de l'audio. Envoyez un message texte en attendant.");
+      return NextResponse.json({ ok: true });
+    }
+  }
+
+  // Ignore other non-text messages (photos, stickers, etc.)
+  if (!text) {
+    await sendTelegramMessage(chatId, "📝 Je ne comprends que les messages texte et vocaux pour l'instant.");
+    return NextResponse.json({ ok: true });
+  }
 
   // Handle /start command (Telegram convention)
   const messageText = text === '/start' ? 'aide' : text;
@@ -66,6 +103,79 @@ export async function GET() {
     channel: 'telegram',
     status: TELEGRAM_BOT_TOKEN ? 'configured' : 'not_configured',
   });
+}
+
+// Transcribe a Telegram voice message using Groq Whisper (free) or fallback
+async function transcribeVoiceMessage(fileId: string): Promise<string | null> {
+  // Step 1: Get file path from Telegram
+  const fileRes = await fetch(
+    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`
+  );
+  const fileData = await fileRes.json();
+
+  if (!fileData.ok || !fileData.result?.file_path) {
+    throw new Error('Failed to get Telegram file path');
+  }
+
+  // Step 2: Download the audio file
+  const audioUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${fileData.result.file_path}`;
+  const audioRes = await fetch(audioUrl);
+  const audioBuffer = await audioRes.arrayBuffer();
+
+  // Step 3: Determine file extension from path
+  const filePath = fileData.result.file_path as string;
+  const ext = filePath.split('.').pop() || 'ogg';
+
+  // Step 4: Transcribe via Groq Whisper API (free, fast)
+  if (GROQ_API_KEY) {
+    const formData = new FormData();
+    formData.append('file', new Blob([audioBuffer], { type: `audio/${ext}` }), `voice.${ext}`);
+    formData.append('model', 'whisper-large-v3');
+    formData.append('language', 'fr');
+    formData.append('response_format', 'text');
+
+    const transcriptRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    if (transcriptRes.ok) {
+      const transcription = await transcriptRes.text();
+      return transcription.trim() || null;
+    }
+
+    console.error('Groq transcription failed:', await transcriptRes.text());
+  }
+
+  // Fallback: if no Groq key, try OpenAI Whisper
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    const formData = new FormData();
+    formData.append('file', new Blob([audioBuffer], { type: `audio/${ext}` }), `voice.${ext}`);
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'fr');
+    formData.append('response_format', 'text');
+
+    const transcriptRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: formData,
+    });
+
+    if (transcriptRes.ok) {
+      const transcription = await transcriptRes.text();
+      return transcription.trim() || null;
+    }
+
+    console.error('OpenAI transcription failed:', await transcriptRes.text());
+  }
+
+  throw new Error('No transcription API configured — set GROQ_API_KEY or OPENAI_API_KEY');
 }
 
 // Send a message via Telegram Bot API
