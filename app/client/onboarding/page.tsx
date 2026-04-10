@@ -312,7 +312,7 @@ export default function ClientOnboardingPage() {
                 padding: 20,
                 marginBottom: 14,
               }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                   <div style={{ fontSize: 32 }}>✈️</div>
                   <div>
                     <div style={{ fontWeight: 700, color: C.dark, fontSize: 15 }}>Telegram</div>
@@ -320,34 +320,60 @@ export default function ClientOnboardingPage() {
                   </div>
                 </div>
 
-                <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.9 }}>
-                  <strong>1.</strong> Ouvrez{" "}
-                  <a href="https://t.me/iartisan_agent_bot" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, fontWeight: 600 }}>
-                    t.me/iartisan_agent_bot
-                  </a><br />
-                  <strong>2.</strong> Envoyez ce code :<br />
+                {/* QR Code */}
+                <div style={{ textAlign: "center", marginBottom: 16 }}>
                   <div style={{
-                    background: C.dark,
-                    color: "#fff",
-                    padding: "10px 16px",
-                    borderRadius: 8,
-                    fontFamily: "monospace",
-                    fontSize: 15,
-                    fontWeight: 700,
                     display: "inline-block",
-                    margin: "8px 0",
-                    letterSpacing: 1,
-                    cursor: "pointer",
-                    WebkitTapHighlightColor: "transparent",
-                  }}
-                    onClick={() => navigator.clipboard?.writeText(clientId)}
-                    title="Cliquer pour copier"
-                  >
-                    {clientId || "..."}
+                    background: "#fff",
+                    borderRadius: 12,
+                    padding: 12,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                  }}>
+                    {clientId && (
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://t.me/iartisan_agent_bot?start=${clientId}`)}&margin=0`}
+                        alt="QR Code Telegram"
+                        width={180}
+                        height={180}
+                        style={{ display: "block", borderRadius: 4 }}
+                      />
+                    )}
                   </div>
-                  <br />
-                  <strong>3.</strong> Essayez : <em style={{ color: C.accent }}>"Aide"</em> ou <em style={{ color: C.accent }}>"Lis mes emails"</em>
+                  <p style={{ fontSize: 13, color: C.dark, fontWeight: 600, marginTop: 10 }}>
+                    Scannez pour ouvrir Telegram
+                  </p>
                 </div>
+
+                <div style={{ fontSize: 13, color: C.muted, textAlign: "center", lineHeight: 1.7, marginBottom: 4 }}>
+                  ou ouvrez directement :
+                </div>
+                <a
+                  href={`https://t.me/iartisan_agent_bot?start=${clientId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    background: "#0088cc",
+                    color: "#fff",
+                    padding: "14px 20px",
+                    borderRadius: 10,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    fontSize: 15,
+                    WebkitTapHighlightColor: "transparent",
+                    minHeight: 48,
+                  }}
+                >
+                  <MessageCircle size={18} />
+                  Ouvrir dans Telegram
+                </a>
+                <p style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>
+                  Votre compte sera lié automatiquement.
+                  <br />Essayez : <em style={{ color: C.accent }}>"Aide"</em> ou <em style={{ color: C.accent }}>"Lis mes emails"</em>
+                </p>
               </div>
 
               {/* WhatsApp teaser */}
