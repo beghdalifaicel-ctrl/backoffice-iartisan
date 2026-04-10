@@ -120,7 +120,7 @@ Exemples :
 - "Relance la facture de 2500€ de Mme Dupont" → {"agentType":"COMMERCIAL","taskType":"invoice.collect","payload":{"clientName":"Mme Dupont","amount":2500}}`,
     userPrompt: message,
     tools: [],
-    responseFormat: 'json_object',
+    responseFormat: 'json',
   });
 
   try {
