@@ -72,7 +72,8 @@ export async function GET() {
 async function sendTelegramMessage(chatId: string, text: string): Promise<void> {
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
-  await fetch(url, {
+  // Try with Markdown first, fallback to plain text if parsing fails
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -82,4 +83,19 @@ async function sendTelegramMessage(chatId: string, text: string): Promise<void> 
       disable_web_page_preview: true,
     }),
   });
+
+  const data = await res.json();
+
+  // If Markdown parsing failed, retry without parse_mode
+  if (!data.ok && data.error_code === 400) {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text.replace(/[*_`\[\]]/g, ''), // Strip markdown chars
+        disable_web_page_preview: true,
+      }),
+    });
+  }
 }
