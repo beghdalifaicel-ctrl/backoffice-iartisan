@@ -39,7 +39,7 @@ export default function ClientLoginPage() {
         return;
       }
 
-      router.push("/client");
+      router.push(data.redirectTo || "/client");
       router.refresh();
     } catch {
       setError("Erreur réseau");

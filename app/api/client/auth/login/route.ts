@@ -28,6 +28,22 @@ export async function POST(req: NextRequest) {
       clientId: client.id,
     });
 
+    // Vérifier si l'onboarding est complété (via Supabase car champ pas dans Prisma)
+    let needsOnboarding = true;
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const { data } = await supabase
+        .from("clients")
+        .select("onboarding_completed")
+        .eq("id", client.id)
+        .single();
+      needsOnboarding = !data?.onboarding_completed;
+    } catch {}
+
     const res = NextResponse.json({
       success: true,
       client: {
@@ -37,6 +53,7 @@ export async function POST(req: NextRequest) {
         company: client.company,
         plan: client.plan,
       },
+      redirectTo: needsOnboarding ? "/client/onboarding" : "/client",
     });
 
     res.cookies.set("ia-session", token, {

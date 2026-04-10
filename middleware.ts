@@ -52,7 +52,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // Vérifier que les routes /admin ne sont accessibles qu'aux admins
-    if (pathname.startsWith("/admin") || pathname.startsWith("/api/stats") || pathname.startsWith("/api/clients")) {
+    if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin") || pathname.startsWith("/api/stats") || pathname.startsWith("/api/clients")) {
       if (role !== "admin") {
         if (pathname.startsWith("/api/")) {
           return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
@@ -76,6 +76,7 @@ export const config = {
   matcher: [
     "/admin/:path*",
     "/client/:path*",
+    "/api/admin/:path*",
     "/api/clients/:path*",
     "/api/client/:path*",
     "/api/stats/:path*",
