@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
 
     // Telegram limite à 4096 chars
     if (reply.length > 4000) {
-      const parts = reply.match(/.{1,4000}/gs) || [reply];
+      const parts = reply.match(/[\s\S]{1,4000}/g) || [reply];
       for (const part of parts) {
         await sendMessage(chatId, part);
       }
