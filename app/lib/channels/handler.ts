@@ -12,7 +12,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { orchestrator } from '../agents/orchestrator';
 import { callLLM } from '../agents/llm';
-import { AgentType, AGENT_CAPABILITIES, PLAN_AGENTS, PlanType } from '../agents/types';
+import { AgentType, AGENT_CAPABILITIES, PLAN_AGENTS, PLAN_QUOTAS, PlanType, DEFAULT_AGENT_NAMES } from '../agents/types';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -173,6 +173,83 @@ function buildHelpMessage(plan: PlanType): string {
   return help;
 }
 
+// Check message usage and increment counter. Returns null if OK, or a message string if limit reached.
+async function checkMessageLimit(
+  clientId: string,
+  channel: string,
+  plan: PlanType
+): Promise<{ allowed: boolean; message?: string; usage?: number; limit?: number }> {
+  const monthlyLimit = PLAN_QUOTAS[plan].messages;
+
+  // -1 means unlimited (PILOTE_AUTO / Max plan)
+  if (monthlyLimit === -1) {
+    return { allowed: true };
+  }
+
+  // Call the Supabase RPC function for atomic increment
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+  const { data, error } = await supabase.rpc('check_and_increment_messages', {
+    p_client_id: clientId,
+    p_channel: channel,
+    p_period_start: periodStart,
+    p_period_end: periodEnd,
+    p_limit: monthlyLimit,
+  });
+
+  if (error) {
+    // On error, allow the message (fail open) but log it
+    console.error('Message limit check error:', error);
+    return { allowed: true };
+  }
+
+  const currentUsage = data?.messages_used || 0;
+
+  // 100% — blocked
+  if (currentUsage > monthlyLimit) {
+    const planNames: Record<PlanType, string> = {
+      ESSENTIEL: 'Pro (99€/mois)',
+      CROISSANCE: 'Max (179€/mois)',
+      PILOTE_AUTO: 'Max',
+    };
+    const upgradeTo = planNames[plan];
+    return {
+      allowed: false,
+      usage: currentUsage,
+      limit: monthlyLimit,
+      message: `⚠️ Vous avez atteint votre limite de ${monthlyLimit} messages ce mois-ci.\n\n🚀 Passez au plan ${upgradeTo} pour continuer à utiliser vos agents !\n\n👉 iartisan.io/upgrade`,
+    };
+  }
+
+  // 80% warning threshold
+  const warningThreshold = Math.floor(monthlyLimit * 0.8);
+  if (currentUsage >= warningThreshold) {
+    const remaining = monthlyLimit - currentUsage;
+    return {
+      allowed: true,
+      usage: currentUsage,
+      limit: monthlyLimit,
+      message: `\n\n💡 _Il vous reste ${remaining} message${remaining > 1 ? 's' : ''} ce mois (${currentUsage}/${monthlyLimit})._`,
+    };
+  }
+
+  return { allowed: true, usage: currentUsage, limit: monthlyLimit };
+}
+
+// Get custom agent display name from agent_configs
+async function getAgentDisplayName(clientId: string, agentType: AgentType): Promise<string> {
+  const { data } = await supabase
+    .from('agent_configs')
+    .select('display_name')
+    .eq('client_id', clientId)
+    .eq('agent_type', agentType)
+    .single();
+
+  return data?.display_name || DEFAULT_AGENT_NAMES[agentType];
+}
+
 // Main handler: process an incoming channel message
 export async function handleChannelMessage(msg: ChannelMessage): Promise<ChannelResponse> {
   const { channel, channelUserId, text, displayName, phone } = msg;
@@ -207,17 +284,26 @@ export async function handleChannelMessage(msg: ChannelMessage): Promise<Channel
 
   const plan = client.plan as PlanType;
 
-  // 3. Handle help command
+  // 3. Handle help command (doesn't count toward message limit)
   const lower = text.trim().toLowerCase();
   if (['aide', 'help', '/aide', '/help', '/start', 'menu'].includes(lower)) {
     return { text: buildHelpMessage(plan), isLinked: true };
   }
 
-  // 4. Detect intent
+  // 4. Check message limit BEFORE processing
+  const limitCheck = await checkMessageLimit(clientId, channel, plan);
+  if (!limitCheck.allowed) {
+    return { text: limitCheck.message!, isLinked: true };
+  }
+
+  // 5. Detect intent
   const availableAgents = PLAN_AGENTS[plan];
   const intent = await detectIntent(text, availableAgents);
 
-  // 5. Submit task
+  // 6. Get custom agent name
+  const agentName = await getAgentDisplayName(clientId, intent.agentType);
+
+  // 7. Submit task
   const submitResult = await orchestrator.submitTask(
     clientId,
     intent.agentType,
@@ -233,7 +319,7 @@ export async function handleChannelMessage(msg: ChannelMessage): Promise<Channel
     };
   }
 
-  // 6. Process task synchronously (instead of waiting for cron)
+  // 8. Process task synchronously (instead of waiting for cron)
   try {
     await orchestrator.processTask(submitResult.taskId);
   } catch (err: any) {
@@ -243,7 +329,7 @@ export async function handleChannelMessage(msg: ChannelMessage): Promise<Channel
     };
   }
 
-  // 7. Fetch the result
+  // 9. Fetch the result
   const { data: task } = await supabase
     .from('agent_tasks')
     .select('status, result, error')
@@ -252,12 +338,12 @@ export async function handleChannelMessage(msg: ChannelMessage): Promise<Channel
 
   if (!task || task.status === 'FAILED') {
     return {
-      text: `❌ L'agent n'a pas pu traiter votre demande${task?.error ? ` : ${task.error}` : ''}.\nRéessayez ou reformulez.`,
+      text: `❌ ${agentName} n'a pas pu traiter votre demande${task?.error ? ` : ${task.error}` : ''}.\nRéessayez ou reformulez.`,
       isLinked: true,
     };
   }
 
-  // 8. Format the response for messaging (strip HTML, keep it concise)
+  // 10. Format the response with custom agent name
   const result = task.result || {};
   let responseText = result.content || '';
 
@@ -266,12 +352,19 @@ export async function handleChannelMessage(msg: ChannelMessage): Promise<Channel
     responseText = responseText.substring(0, 2900) + '\n\n... (résultat complet envoyé par email)';
   }
 
-  // Add agent badge
+  // Add personalized agent badge with custom name
   const agentEmoji: Record<string, string> = { ADMIN: '📋', MARKETING: '📢', COMMERCIAL: '💼' };
-  const badge = `${agentEmoji[intent.agentType] || '🤖'} *Agent ${intent.agentType}*\n\n`;
+  const badge = `${agentEmoji[intent.agentType] || '🤖'} *${agentName}*\n\n`;
+
+  let fullResponse = badge + (responseText || "✅ Tâche exécutée. Vérifiez votre email pour les détails.");
+
+  // Append usage warning if near limit (80%+)
+  if (limitCheck.message) {
+    fullResponse += limitCheck.message;
+  }
 
   return {
-    text: badge + (responseText || "✅ Tâche exécutée. Vérifiez votre email pour les détails."),
+    text: fullResponse,
     isLinked: true,
   };
 }

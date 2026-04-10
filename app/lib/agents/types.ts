@@ -12,10 +12,24 @@ export const PLAN_AGENTS: Record<PlanType, AgentType[]> = {
 };
 
 // Quotas per plan per month
-export const PLAN_QUOTAS: Record<PlanType, { tasks: number; tokens: number; emails: number }> = {
-  ESSENTIEL: { tasks: 500, tokens: 500_000, emails: 100 },
-  CROISSANCE: { tasks: 2000, tokens: 2_000_000, emails: 500 },
-  PILOTE_AUTO: { tasks: 5000, tokens: 5_000_000, emails: 2000 },
+export const PLAN_QUOTAS: Record<PlanType, { tasks: number; tokens: number; emails: number; messages: number }> = {
+  ESSENTIEL: { tasks: 500, tokens: 500_000, emails: 100, messages: 100 },
+  CROISSANCE: { tasks: 2000, tokens: 2_000_000, emails: 500, messages: 500 },
+  PILOTE_AUTO: { tasks: 5000, tokens: 5_000_000, emails: 2000, messages: -1 }, // -1 = unlimited
+};
+
+// Default assistant names per agent type
+export const DEFAULT_AGENT_NAMES: Record<AgentType, string> = {
+  ADMIN: 'Alice',
+  MARKETING: 'Marc',
+  COMMERCIAL: 'Léa',
+};
+
+// Agent descriptions for onboarding
+export const AGENT_DESCRIPTIONS: Record<AgentType, string> = {
+  ADMIN: 'Gère vos emails, devis, factures et relances clients',
+  MARKETING: 'Optimise votre fiche Google, répond aux avis, gère votre SEO et réseaux sociaux',
+  COMMERCIAL: 'Prospecte, qualifie les leads, relance les impayés et vous inscrit sur les annuaires',
 };
 
 // Task types per agent
