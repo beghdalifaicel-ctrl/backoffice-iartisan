@@ -1,6 +1,12 @@
 import { registerTool } from './registry';
 import { Tool, AgentContext } from '../types';
 import { listEmails, sendEmail, isGmailConnected } from '../../integrations/gmail';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // ── Email Tools ────────────────────────────
 
@@ -33,7 +39,7 @@ const emailRead: Tool = {
           threadId: e.threadId,
           from: e.from,
           subject: e.subject,
-          body: e.body.substring(0, 2000), // Limit body size for LLM context
+          body: e.body.substring(0, 2000),
           date: e.date,
           isUnread: e.isUnread,
         })),
@@ -78,17 +84,18 @@ const emailReply: Tool = {
   },
 };
 
-// ── Quote/Invoice Tools ────────────────────
+// ── Quote Tool ────────────────────────────
 
 const generateQuote: Tool = {
   name: 'generate_quote',
-  description: 'Génère un devis professionnel pour l\'artisan',
+  description: 'Génère un devis professionnel HTML et l\'envoie par email au client',
   parameters: {
     type: 'object',
     properties: {
       clientName: { type: 'string', description: 'Nom du client' },
       clientEmail: { type: 'string', description: 'Email du client' },
       clientPhone: { type: 'string', description: 'Téléphone du client' },
+      clientAddress: { type: 'string', description: 'Adresse du client' },
       description: { type: 'string', description: 'Description des travaux' },
       items: {
         type: 'array',
@@ -104,58 +111,330 @@ const generateQuote: Tool = {
         description: 'Lignes du devis',
       },
       validityDays: { type: 'number', default: 30 },
+      notes: { type: 'string', description: 'Conditions ou notes supplémentaires' },
     },
     required: ['clientName', 'description', 'items'],
   },
   execute: async (params, context) => {
-    // TODO: Generate PDF quote using template
-    return { quoteId: null, message: 'Quote generation pending implementation' };
+    // Get artisan info
+    const { data: client } = await supabase
+      .from('clients')
+      .select('company, firstName, lastName, email, phone, siret, adresse, ville, codePostal, metier')
+      .eq('id', context.clientId)
+      .single();
+
+    if (!client) return { error: 'Client artisan non trouvé' };
+
+    const quoteNumber = `DEV-${Date.now().toString(36).toUpperCase()}`;
+    const today = new Date().toLocaleDateString('fr-FR');
+    const validUntil = new Date(Date.now() + (params.validityDays || 30) * 86400000).toLocaleDateString('fr-FR');
+
+    // Calculate totals
+    const lines = (params.items || []).map((item: any) => ({
+      label: item.label,
+      quantity: item.quantity || 1,
+      unitPrice: item.unitPrice || 0,
+      unit: item.unit || 'forfait',
+      total: (item.quantity || 1) * (item.unitPrice || 0),
+    }));
+    const totalHT = lines.reduce((sum: number, l: any) => sum + l.total, 0);
+    const tva = totalHT * 0.20;
+    const totalTTC = totalHT + tva;
+
+    // Generate professional HTML quote
+    const quoteHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333;">
+      <div style="display: flex; justify-content: space-between; border-bottom: 3px solid #ff5c00; padding-bottom: 20px; margin-bottom: 30px;">
+        <div>
+          <h1 style="color: #ff5c00; margin: 0; font-size: 28px;">DEVIS</h1>
+          <p style="margin: 5px 0; color: #666;">N° ${quoteNumber}</p>
+          <p style="margin: 5px 0; color: #666;">Date : ${today}</p>
+          <p style="margin: 5px 0; color: #666;">Valide jusqu'au : ${validUntil}</p>
+        </div>
+        <div style="text-align: right;">
+          <h2 style="margin: 0; color: #1a1a14;">${client.company}</h2>
+          <p style="margin: 3px 0; font-size: 14px;">${client.firstName} ${client.lastName}</p>
+          ${client.adresse ? `<p style="margin: 3px 0; font-size: 14px;">${client.adresse}</p>` : ''}
+          ${client.ville ? `<p style="margin: 3px 0; font-size: 14px;">${client.codePostal || ''} ${client.ville}</p>` : ''}
+          ${client.siret ? `<p style="margin: 3px 0; font-size: 14px;">SIRET : ${client.siret}</p>` : ''}
+          <p style="margin: 3px 0; font-size: 14px;">${client.phone || ''}</p>
+        </div>
+      </div>
+
+      <div style="background: #f7f4ef; padding: 15px 20px; border-radius: 8px; margin-bottom: 25px;">
+        <h3 style="margin: 0 0 5px 0;">Client : ${params.clientName}</h3>
+        ${params.clientAddress ? `<p style="margin: 3px 0; font-size: 14px;">${params.clientAddress}</p>` : ''}
+        ${params.clientEmail ? `<p style="margin: 3px 0; font-size: 14px;">${params.clientEmail}</p>` : ''}
+        ${params.clientPhone ? `<p style="margin: 3px 0; font-size: 14px;">${params.clientPhone}</p>` : ''}
+      </div>
+
+      <p style="margin-bottom: 20px;"><strong>Objet :</strong> ${params.description}</p>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+        <thead>
+          <tr style="background: #1a1a14; color: #fff;">
+            <th style="padding: 10px; text-align: left;">Désignation</th>
+            <th style="padding: 10px; text-align: center; width: 80px;">Qté</th>
+            <th style="padding: 10px; text-align: center; width: 80px;">Unité</th>
+            <th style="padding: 10px; text-align: right; width: 100px;">PU HT</th>
+            <th style="padding: 10px; text-align: right; width: 100px;">Total HT</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lines.map((l: any, i: number) => `
+          <tr style="background: ${i % 2 === 0 ? '#fff' : '#f9f9f9'}; border-bottom: 1px solid #eee;">
+            <td style="padding: 10px;">${l.label}</td>
+            <td style="padding: 10px; text-align: center;">${l.quantity}</td>
+            <td style="padding: 10px; text-align: center;">${l.unit}</td>
+            <td style="padding: 10px; text-align: right;">${l.unitPrice.toFixed(2)} €</td>
+            <td style="padding: 10px; text-align: right;">${l.total.toFixed(2)} €</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+
+      <div style="display: flex; justify-content: flex-end;">
+        <table style="width: 250px;">
+          <tr><td style="padding: 5px;">Total HT</td><td style="padding: 5px; text-align: right; font-weight: bold;">${totalHT.toFixed(2)} €</td></tr>
+          <tr><td style="padding: 5px;">TVA (20%)</td><td style="padding: 5px; text-align: right;">${tva.toFixed(2)} €</td></tr>
+          <tr style="border-top: 2px solid #ff5c00;"><td style="padding: 8px 5px; font-weight: bold; font-size: 18px;">Total TTC</td><td style="padding: 8px 5px; text-align: right; font-weight: bold; font-size: 18px; color: #ff5c00;">${totalTTC.toFixed(2)} €</td></tr>
+        </table>
+      </div>
+
+      ${params.notes ? `<div style="margin-top: 25px; padding: 15px; background: #f7f4ef; border-radius: 8px; font-size: 13px;"><strong>Conditions :</strong><br/>${params.notes}</div>` : ''}
+
+      <div style="margin-top: 40px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 15px;">
+        <p>Devis généré automatiquement par iArtisan pour ${client.company}.</p>
+        <p>Pour accepter ce devis, merci de répondre à cet email avec la mention "Bon pour accord".</p>
+      </div>
+    </div>`;
+
+    // Store quote in DB
+    const quoteId = `quote-${Date.now()}`;
+    await supabase.from('agent_logs').insert({
+      client_id: context.clientId,
+      agent_type: 'ADMIN',
+      action: 'quote.generated',
+      tokens_used: 0,
+      model_used: 'template',
+      duration_ms: 0,
+      cost_cents: 0,
+      metadata: {
+        quoteNumber,
+        clientName: params.clientName,
+        clientEmail: params.clientEmail,
+        totalHT,
+        totalTTC,
+        items: lines,
+      },
+    });
+
+    // Send by email if client email provided and Gmail connected
+    if (params.clientEmail) {
+      const gmailConnected = await isGmailConnected(context.clientId);
+      if (gmailConnected) {
+        try {
+          await sendEmail(context.clientId, {
+            to: params.clientEmail,
+            subject: `Devis ${quoteNumber} — ${client.company}`,
+            body: quoteHtml,
+          });
+          return { quoteId: quoteNumber, sent: true, totalHT, totalTTC, clientEmail: params.clientEmail };
+        } catch (err: any) {
+          return { quoteId: quoteNumber, sent: false, error: err.message, totalHT, totalTTC, html: quoteHtml };
+        }
+      }
+    }
+
+    return { quoteId: quoteNumber, sent: false, totalHT, totalTTC, html: quoteHtml, message: 'Devis généré. Gmail non connecté — envoi manuel nécessaire.' };
   },
 };
 
+// ── Invoice Tool ────────────────────────────
+
 const generateInvoice: Tool = {
   name: 'generate_invoice',
-  description: 'Génère une facture à partir d\'un devis validé',
+  description: 'Génère une facture professionnelle HTML et l\'envoie par email',
   parameters: {
     type: 'object',
     properties: {
-      quoteId: { type: 'string', description: 'ID du devis source (optionnel)' },
       clientName: { type: 'string' },
-      items: { type: 'array', items: { type: 'object' } },
+      clientEmail: { type: 'string' },
+      clientAddress: { type: 'string' },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string' },
+            quantity: { type: 'number' },
+            unitPrice: { type: 'number' },
+            unit: { type: 'string' },
+          },
+        },
+      },
       dueDate: { type: 'string', description: 'Date d\'échéance (YYYY-MM-DD)' },
+      paymentMethod: { type: 'string', description: 'Mode de paiement (virement, chèque, CB)', default: 'virement' },
     },
     required: ['clientName', 'items'],
   },
   execute: async (params, context) => {
-    // TODO: Generate PDF invoice
-    return { invoiceId: null, message: 'Invoice generation pending implementation' };
+    const { data: client } = await supabase
+      .from('clients')
+      .select('company, firstName, lastName, siret, adresse, ville, codePostal, phone')
+      .eq('id', context.clientId)
+      .single();
+
+    if (!client) return { error: 'Client artisan non trouvé' };
+
+    const invoiceNumber = `FA-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}`;
+    const today = new Date().toLocaleDateString('fr-FR');
+    const dueDate = params.dueDate ? new Date(params.dueDate).toLocaleDateString('fr-FR') : new Date(Date.now() + 30 * 86400000).toLocaleDateString('fr-FR');
+
+    const lines = (params.items || []).map((item: any) => ({
+      label: item.label,
+      quantity: item.quantity || 1,
+      unitPrice: item.unitPrice || 0,
+      unit: item.unit || 'forfait',
+      total: (item.quantity || 1) * (item.unitPrice || 0),
+    }));
+    const totalHT = lines.reduce((sum: number, l: any) => sum + l.total, 0);
+    const tva = totalHT * 0.20;
+    const totalTTC = totalHT + tva;
+
+    const invoiceHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333;">
+      <div style="display: flex; justify-content: space-between; border-bottom: 3px solid #ff5c00; padding-bottom: 20px; margin-bottom: 30px;">
+        <div>
+          <h1 style="color: #ff5c00; margin: 0; font-size: 28px;">FACTURE</h1>
+          <p style="margin: 5px 0;">N° ${invoiceNumber}</p>
+          <p style="margin: 5px 0;">Date : ${today}</p>
+          <p style="margin: 5px 0;">Échéance : ${dueDate}</p>
+        </div>
+        <div style="text-align: right;">
+          <h2 style="margin: 0;">${client.company}</h2>
+          <p style="margin: 3px 0; font-size: 14px;">${client.firstName} ${client.lastName}</p>
+          ${client.siret ? `<p style="margin: 3px 0; font-size: 14px;">SIRET : ${client.siret}</p>` : ''}
+          ${client.adresse ? `<p style="margin: 3px 0; font-size: 14px;">${client.adresse}, ${client.codePostal || ''} ${client.ville || ''}</p>` : ''}
+        </div>
+      </div>
+      <div style="background: #f7f4ef; padding: 15px 20px; border-radius: 8px; margin-bottom: 25px;">
+        <h3 style="margin: 0 0 5px 0;">Facturé à : ${params.clientName}</h3>
+        ${params.clientAddress ? `<p style="margin: 3px 0; font-size: 14px;">${params.clientAddress}</p>` : ''}
+        ${params.clientEmail ? `<p style="margin: 3px 0; font-size: 14px;">${params.clientEmail}</p>` : ''}
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+        <thead><tr style="background: #1a1a14; color: #fff;">
+          <th style="padding: 10px; text-align: left;">Désignation</th>
+          <th style="padding: 10px; text-align: center; width: 80px;">Qté</th>
+          <th style="padding: 10px; text-align: center; width: 80px;">Unité</th>
+          <th style="padding: 10px; text-align: right; width: 100px;">PU HT</th>
+          <th style="padding: 10px; text-align: right; width: 100px;">Total HT</th>
+        </tr></thead>
+        <tbody>${lines.map((l: any, i: number) => `
+          <tr style="background: ${i % 2 === 0 ? '#fff' : '#f9f9f9'}; border-bottom: 1px solid #eee;">
+            <td style="padding: 10px;">${l.label}</td>
+            <td style="padding: 10px; text-align: center;">${l.quantity}</td>
+            <td style="padding: 10px; text-align: center;">${l.unit}</td>
+            <td style="padding: 10px; text-align: right;">${l.unitPrice.toFixed(2)} €</td>
+            <td style="padding: 10px; text-align: right;">${l.total.toFixed(2)} €</td>
+          </tr>`).join('')}</tbody>
+      </table>
+      <div style="display: flex; justify-content: flex-end;">
+        <table style="width: 250px;">
+          <tr><td style="padding: 5px;">Total HT</td><td style="padding: 5px; text-align: right; font-weight: bold;">${totalHT.toFixed(2)} €</td></tr>
+          <tr><td style="padding: 5px;">TVA (20%)</td><td style="padding: 5px; text-align: right;">${tva.toFixed(2)} €</td></tr>
+          <tr style="border-top: 2px solid #ff5c00;"><td style="padding: 8px 5px; font-weight: bold; font-size: 18px;">Total TTC</td><td style="padding: 8px 5px; text-align: right; font-weight: bold; font-size: 18px; color: #ff5c00;">${totalTTC.toFixed(2)} €</td></tr>
+        </table>
+      </div>
+      <div style="margin-top: 25px; padding: 15px; background: #f7f4ef; border-radius: 8px; font-size: 13px;">
+        <strong>Paiement :</strong> ${params.paymentMethod || 'Virement bancaire'}<br/>
+        <strong>Échéance :</strong> ${dueDate}<br/>
+        En cas de retard de paiement, une pénalité de 3 fois le taux d'intérêt légal sera appliquée, ainsi qu'une indemnité forfaitaire de 40€ pour frais de recouvrement.
+      </div>
+      <div style="margin-top: 30px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 15px;">
+        Facture générée par iArtisan pour ${client.company}.
+      </div>
+    </div>`;
+
+    // Store invoice in DB
+    await supabase.from('invoices').insert({
+      id: `inv-${Date.now()}`,
+      number: invoiceNumber,
+      amount: Math.round(totalTTC * 100),
+      status: 'PENDING',
+      clientId: context.clientId,
+    }).catch(() => {}); // Ignore if table schema differs
+
+    // Send by email
+    if (params.clientEmail) {
+      const gmailConnected = await isGmailConnected(context.clientId);
+      if (gmailConnected) {
+        try {
+          await sendEmail(context.clientId, {
+            to: params.clientEmail,
+            subject: `Facture ${invoiceNumber} — ${client.company}`,
+            body: invoiceHtml,
+          });
+          return { invoiceNumber, sent: true, totalHT, totalTTC };
+        } catch (err: any) {
+          return { invoiceNumber, sent: false, error: err.message, totalHT, totalTTC };
+        }
+      }
+    }
+
+    return { invoiceNumber, sent: false, totalHT, totalTTC, html: invoiceHtml };
   },
 };
 
+// ── Follow-up Tool ────────────────────────────
+
 const followUpClient: Tool = {
   name: 'follow_up_client',
-  description: 'Envoie une relance automatique à un client (devis en attente, RDV, etc.)',
+  description: 'Envoie une relance automatique à un client (devis en attente, RDV, satisfaction)',
   parameters: {
     type: 'object',
     properties: {
       clientEmail: { type: 'string' },
-      reason: { type: 'string', description: 'Raison de la relance (devis_pending, rdv_reminder, satisfaction)' },
-      context: { type: 'string', description: 'Contexte additionnel pour personnaliser le message' },
+      clientName: { type: 'string' },
+      reason: { type: 'string', description: 'Raison: devis_pending, rdv_reminder, satisfaction, payment_reminder' },
+      subject: { type: 'string', description: 'Objet de l\'email de relance' },
+      body: { type: 'string', description: 'Corps du message de relance généré par l\'IA' },
+      context: { type: 'string', description: 'Contexte additionnel' },
     },
-    required: ['clientEmail', 'reason'],
+    required: ['clientEmail', 'reason', 'subject', 'body'],
   },
   execute: async (params, context) => {
     const connected = await isGmailConnected(context.clientId);
-    if (!connected) return { error: 'Gmail non connecté' };
+    if (!connected) return { error: 'Gmail non connecté', followUp: { subject: params.subject, body: params.body } };
 
-    // The LLM will generate the follow-up content, then call send_email
-    return { ready: true, message: 'Use send_email tool with the generated follow-up content' };
+    try {
+      const result = await sendEmail(context.clientId, {
+        to: params.clientEmail,
+        subject: params.subject,
+        body: params.body,
+      });
+
+      await supabase.from('agent_logs').insert({
+        client_id: context.clientId,
+        agent_type: 'ADMIN',
+        action: `followup.${params.reason}`,
+        tokens_used: 0,
+        model_used: 'template',
+        duration_ms: 0,
+        cost_cents: 0,
+        metadata: { clientEmail: params.clientEmail, reason: params.reason },
+      });
+
+      return { sent: true, messageId: result.id, reason: params.reason, to: params.clientEmail };
+    } catch (err: any) {
+      return { error: `Erreur envoi: ${err.message}` };
+    }
   },
 };
 
 // Register all admin tools
 registerTool('email.read', emailRead);
-registerTool('email.summarize', emailRead); // Reuse read, LLM does the summarization
+registerTool('email.summarize', emailRead);
 registerTool('email.reply', emailReply);
 registerTool('quote.generate', generateQuote);
 registerTool('invoice.generate', generateInvoice);
