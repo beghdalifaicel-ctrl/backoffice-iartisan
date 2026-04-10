@@ -43,6 +43,9 @@ model Client {
   googleRating         Float?
   googleReviewCount    Int      @default(0)
 
+  // Authentification client
+  passwordHash         String?
+
   // Site vitrine
   siteUrl              String?
   sitePublished        Boolean  @default(false)

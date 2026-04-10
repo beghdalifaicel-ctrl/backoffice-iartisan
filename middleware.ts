@@ -9,7 +9,9 @@ export async function middleware(req: NextRequest) {
   // Routes publiques — ne pas protéger
   if (
     pathname.startsWith("/login") ||
+    pathname.startsWith("/client/login") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/client/auth") ||
     pathname.startsWith("/api/leads") ||
     pathname.startsWith("/api/webhooks") ||
     pathname.startsWith("/api/integrations") ||
@@ -30,21 +32,53 @@ export async function middleware(req: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
-    return NextResponse.redirect(new URL("/login", req.url));
+    // Redirect clients vs admins to their respective login
+    const loginUrl = pathname.startsWith("/client") ? "/client/login" : "/login";
+    return NextResponse.redirect(new URL(loginUrl, req.url));
   }
 
   try {
-    await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret);
+    const role = (payload as any).role;
+
+    // Vérifier que les routes /client ne sont accessibles qu'aux clients (ou admin)
+    if (pathname.startsWith("/client") || pathname.startsWith("/api/client/")) {
+      if (role !== "client" && role !== "admin") {
+        if (pathname.startsWith("/api/")) {
+          return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+        }
+        return NextResponse.redirect(new URL("/client/login", req.url));
+      }
+    }
+
+    // Vérifier que les routes /admin ne sont accessibles qu'aux admins
+    if (pathname.startsWith("/admin") || pathname.startsWith("/api/stats") || pathname.startsWith("/api/clients")) {
+      if (role !== "admin") {
+        if (pathname.startsWith("/api/")) {
+          return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+        }
+        return NextResponse.redirect(new URL("/login", req.url));
+      }
+    }
+
     return NextResponse.next();
   } catch {
     // Token invalide ou expiré
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
-    return NextResponse.redirect(new URL("/login", req.url));
+    const loginUrl = pathname.startsWith("/client") ? "/client/login" : "/login";
+    return NextResponse.redirect(new URL(loginUrl, req.url));
   }
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/clients/:path*", "/api/stats/:path*", "/api/agents/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/client/:path*",
+    "/api/clients/:path*",
+    "/api/client/:path*",
+    "/api/stats/:path*",
+    "/api/agents/:path*",
+  ],
 };
