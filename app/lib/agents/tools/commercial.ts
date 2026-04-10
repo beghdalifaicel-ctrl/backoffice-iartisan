@@ -122,7 +122,7 @@ const scrapeLeads: Tool = {
         duration_ms: 0,
         cost_cents: 0,
         metadata: { leadName: lead.name, leadCompany: lead.company, zone: params.zone, source: lead.source },
-      }).catch(() => {});
+      });
     }
 
     // Send report by email
