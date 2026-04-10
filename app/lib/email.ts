@@ -104,7 +104,7 @@ export async function sendAdminNotification(subject: string, data: {
   ctaLabel?: string;
   ctaUrl?: string;
 }) {
-  const adminEmail = process.env.ADMIN_EMAIL || "faicel@easydentist.fr";
+  const adminEmail = process.env.ADMIN_EMAIL || "faicel@iartisan.io";
 
   let detailsHtml = "";
   for (const [key, value] of Object.entries(data.details)) {
