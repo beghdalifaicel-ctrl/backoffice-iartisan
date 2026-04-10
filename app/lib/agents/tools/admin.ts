@@ -357,13 +357,16 @@ const generateInvoice: Tool = {
     </div>`;
 
     // Store invoice in DB
-    await supabase.from('invoices').insert({
-      id: `inv-${Date.now()}`,
-      number: invoiceNumber,
-      amount: Math.round(totalTTC * 100),
-      status: 'PENDING',
-      clientId: context.clientId,
-    }).catch(() => {}); // Ignore if table schema differs
+    // Store invoice in DB (ignore errors if table schema differs)
+    try {
+      await supabase.from('invoices').insert({
+        id: `inv-${Date.now()}`,
+        number: invoiceNumber,
+        amount: Math.round(totalTTC * 100),
+        status: 'PENDING',
+        clientId: context.clientId,
+      });
+    } catch (_) { /* table may not exist yet */ }
 
     // Send by email
     if (params.clientEmail) {
