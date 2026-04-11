@@ -63,6 +63,7 @@ const AGENT_TOOLS: ToolDef[] = [
       { value: "payment_reminder", label: "Rappel de paiement" },
     ]},
   ]},
+  { taskType: "report.weekly", agentType: "ADMIN", label: "Rapport hebdo", desc: "Génère un rapport d'activité de la semaine", icon: BarChart3, fields: [] },
   // MARKETING
   { taskType: "gbp.optimize", agentType: "MARKETING", label: "Audit Google Business", desc: "Analyse et optimise votre fiche GBP", icon: Search, fields: [] },
   { taskType: "gbp.post", agentType: "MARKETING", label: "Post Google Business", desc: "Crée un post pour votre fiche GBP", icon: Globe, fields: [
@@ -79,6 +80,15 @@ const AGENT_TOOLS: ToolDef[] = [
     { key: "reviewText", label: "Texte de l'avis", placeholder: "Très bon accueil, je recommande..." },
   ]},
   { taskType: "seo.audit", agentType: "MARKETING", label: "Audit SEO local", desc: "Analyse votre référencement local", icon: BarChart3, fields: [] },
+  { taskType: "site.update", agentType: "MARKETING", label: "Contenu site web", desc: "Génère du texte optimisé pour votre site", icon: FileEdit, fields: [
+    { key: "pageType", label: "Type de page", placeholder: "", options: [
+      { value: "home", label: "Accueil" },
+      { value: "services", label: "Services" },
+      { value: "about", label: "À propos" },
+      { value: "blog_post", label: "Article blog" },
+    ]},
+    { key: "topic", label: "Sujet / titre", placeholder: "Ex: Nos services de rénovation" },
+  ]},
   { taskType: "social.post", agentType: "MARKETING", label: "Post réseaux sociaux", desc: "Crée un post Facebook, Instagram ou LinkedIn", icon: Globe, fields: [
     { key: "platform", label: "Réseau", placeholder: "", options: [
       { value: "facebook", label: "Facebook" },
@@ -95,6 +105,26 @@ const AGENT_TOOLS: ToolDef[] = [
   { taskType: "prospect.email", agentType: "COMMERCIAL", label: "Email de prospection", desc: "Envoie un email de prospection personnalisé", icon: Send, fields: [
     { key: "sector", label: "Secteur cible", placeholder: "Ex: dentiste" },
     { key: "angle", label: "Angle d'approche", placeholder: "Ex: visibilité Google" },
+  ]},
+  { taskType: "lead.qualify", agentType: "COMMERCIAL", label: "Qualifier un lead", desc: "Analyse et score un prospect entrant", icon: Activity, fields: [
+    { key: "leadName", label: "Nom du prospect", placeholder: "Ex: Pierre Durand" },
+    { key: "message", label: "Sa demande", placeholder: "Ex: Besoin d'un plombier pour rénovation salle de bain" },
+    { key: "source", label: "Source", placeholder: "Ex: site web, Google, bouche à oreille" },
+  ]},
+  { taskType: "lead.respond", agentType: "COMMERCIAL", label: "Répondre à un lead", desc: "Envoie une réponse personnalisée à un prospect", icon: Mail, fields: [
+    { key: "leadName", label: "Nom du prospect", placeholder: "Ex: Pierre Durand" },
+    { key: "leadEmail", label: "Email du prospect", placeholder: "pierre@email.com" },
+    { key: "originalMessage", label: "Sa demande", placeholder: "Le message du prospect" },
+  ]},
+  { taskType: "invoice.collect", agentType: "COMMERCIAL", label: "Relance impayé", desc: "Envoie une relance de paiement adaptée", icon: CreditCard, fields: [
+    { key: "clientName", label: "Nom du client", placeholder: "Ex: Société Martin" },
+    { key: "clientEmail", label: "Email du client", placeholder: "client@email.com" },
+    { key: "amount", label: "Montant (€)", placeholder: "1500", type: "number" },
+    { key: "relanceLevel", label: "Niveau", placeholder: "", options: [
+      { value: "1", label: "Amicale (1re relance)" },
+      { value: "2", label: "Ferme (2e relance)" },
+      { value: "3", label: "Mise en demeure" },
+    ]},
   ]},
   { taskType: "directory.enroll", agentType: "COMMERCIAL", label: "Inscription annuaire", desc: "Prépare votre inscription sur un annuaire pro", icon: Globe, fields: [
     { key: "directoryName", label: "Nom de l'annuaire", placeholder: "Ex: PagesJaunes" },
