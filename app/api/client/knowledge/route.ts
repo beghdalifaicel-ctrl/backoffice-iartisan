@@ -8,9 +8,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from '@/app/lib/auth';
-import { ingestDocument, listDocuments, deleteDocument } from '@/app/lib/knowledge/rag';
-import { AgentType } from '@/app/lib/agents/types';
+import { verifyAuth } from '@/lib/auth';
+import { ingestDocument, listDocuments, deleteDocument } from '@/lib/knowledge/rag';
+import { AgentType } from '@/lib/agents/types';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

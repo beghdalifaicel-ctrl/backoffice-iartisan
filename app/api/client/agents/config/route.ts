@@ -13,8 +13,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from '@/app/lib/auth';
-import { AgentType, AgentPersonality, DEFAULT_PERSONALITY, PLAN_AGENTS, PlanType } from '@/app/lib/agents/types';
+import { verifyAuth } from '@/lib/auth';
+import { AgentType, AgentPersonality, DEFAULT_PERSONALITY, PLAN_AGENTS, PlanType } from '@/lib/agents/types';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

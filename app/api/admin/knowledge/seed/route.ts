@@ -6,8 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { ingestDocument } from '@/app/lib/knowledge/rag';
-import { AgentType } from '@/app/lib/agents/types';
+import { ingestDocument } from '@/lib/knowledge/rag';
+import { AgentType } from '@/lib/agents/types';
 
 export async function POST(request: NextRequest) {
   // Admin auth via CRON_SECRET
