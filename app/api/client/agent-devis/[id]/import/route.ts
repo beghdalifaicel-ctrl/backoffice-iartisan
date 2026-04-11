@@ -36,22 +36,22 @@ export async function POST(
       return NextResponse.json({ error: "Déjà importé" }, { status: 400 });
     }
 
-    // Créer ou utiliser un CustomerContact existant
+    // Créer ou utiliser un CustomerContact existant — raw SQL
     let customerId = body.customerId;
 
     if (!customerId) {
-      const newCustomer = await prisma.customerContact.create({
-        data: {
-          clientId: session.clientId!,
-          name: ad.prospectName,
-          email: ad.prospectEmail || undefined,
-          phone: ad.prospectPhone || undefined,
-          adresse: ad.prospectAdresse || undefined,
-          ville: ad.prospectVille || undefined,
-          type: "PARTICULIER",
-        },
-      });
-      customerId = newCustomer.id;
+      const custRows: any[] = await prisma.$queryRawUnsafe(
+        `INSERT INTO customer_contacts (id, created_at, updated_at, type, name, email, phone, adresse, ville, client_id)
+         VALUES (gen_random_uuid()::text, now(), now(), 'PARTICULIER', $1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        ad.prospectName,
+        ad.prospectEmail || null,
+        ad.prospectPhone || null,
+        ad.prospectAdresse || null,
+        ad.prospectVille || null,
+        session.clientId
+      );
+      customerId = custRows[0].id;
     }
 
     // Générer numéro de devis
@@ -65,14 +65,6 @@ export async function POST(
     // Parser les lignes
     const lignesData = Array.isArray(ad.lignes) ? ad.lignes : [];
 
-    // Regrouper par lot
-    const lotsMap: Record<string, any[]> = {};
-    for (const l of lignesData) {
-      const lotName = l.lot || "Lot 1";
-      if (!lotsMap[lotName]) lotsMap[lotName] = [];
-      lotsMap[lotName].push(l);
-    }
-
     // Calculer totaux
     let totalHT = 0;
     let totalTVA = 0;
@@ -83,48 +75,71 @@ export async function POST(
     }
     const totalTTC = totalHT + totalTVA;
 
-    // Créer le devis avec lots et lignes via Prisma (ces models existent déjà)
-    const devis = await prisma.devis.create({
-      data: {
-        number,
-        clientId: session.clientId!,
-        customerId,
-        objet: ad.objet,
-        status: "BROUILLON",
-        totalHT: Math.round(totalHT * 100) / 100,
-        totalTVA: Math.round(totalTVA * 100) / 100,
-        totalTTC: Math.round(totalTTC * 100) / 100,
-        notes: ad.aiNotes || undefined,
-        lots: {
-          create: Object.entries(lotsMap).map(([titre, lignes], lotIdx) => ({
-            titre,
-            position: lotIdx,
-            lignes: {
-              create: (lignes as any[]).map((l: any, lIdx: number) => ({
-                position: lIdx,
-                designation: l.designation || "",
-                description: l.description || undefined,
-                quantite: l.quantite || 1,
-                unite: l.unite || "u",
-                prixUnitHT: l.prixUnitHT || 0,
-                tauxTVA: l.tauxTVA || 20,
-              })),
-            },
-          })),
-        },
-      },
-    });
+    // Créer le devis — raw SQL
+    const devisRows: any[] = await prisma.$queryRawUnsafe(
+      `INSERT INTO devis (id, created_at, updated_at, number, objet, status, remise_percent, total_ht, total_tva, total_ttc, notes, customer_id, client_id)
+       VALUES (gen_random_uuid()::text, now(), now(), $1, $2, 'BROUILLON', 0, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      number,
+      ad.objet,
+      Math.round(totalHT * 100) / 100,
+      Math.round(totalTVA * 100) / 100,
+      Math.round(totalTTC * 100) / 100,
+      ad.aiNotes || null,
+      customerId,
+      session.clientId
+    );
+    const devisId = devisRows[0].id;
 
-    // Mettre à jour le statut de l'agent devis
+    // Regrouper lignes par lot
+    const lotsMap: Record<string, any[]> = {};
+    for (const l of lignesData) {
+      const lotName = l.lot || "Lot 1";
+      if (!lotsMap[lotName]) lotsMap[lotName] = [];
+      lotsMap[lotName].push(l);
+    }
+
+    // Créer lots et lignes
+    let lotPos = 0;
+    for (const [titre, lignes] of Object.entries(lotsMap)) {
+      const lotRows: any[] = await prisma.$queryRawUnsafe(
+        `INSERT INTO devis_lots (id, position, titre, devis_id)
+         VALUES (gen_random_uuid()::text, $1, $2, $3)
+         RETURNING id`,
+        lotPos,
+        titre,
+        devisId
+      );
+      const lotId = lotRows[0].id;
+
+      for (let i = 0; i < (lignes as any[]).length; i++) {
+        const l = (lignes as any[])[i];
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO devis_lignes (id, position, designation, description, quantite, unite, prix_unit_ht, taux_tva, lot_id)
+           VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8)`,
+          i,
+          l.designation || "",
+          l.description || null,
+          l.quantite || 1,
+          l.unite || "u",
+          l.prixUnitHT || 0,
+          l.tauxTVA || 20,
+          lotId
+        );
+      }
+      lotPos++;
+    }
+
+    // Mettre à jour le statut agent devis
     await prisma.$executeRawUnsafe(
       `UPDATE agent_devis SET status = 'IMPORTE'::agent_devis_status, imported_devis_id = $1, updated_at = now() WHERE id = $2`,
-      devis.id,
+      devisId,
       agentDevisId
     );
 
     return NextResponse.json({
       success: true,
-      devisId: devis.id,
+      devisId,
       devisNumber: number,
     });
   } catch (e: any) {
