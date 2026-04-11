@@ -14,27 +14,27 @@ const C = {
   red: "#dc2626", blue: "#2563eb",
 };
 
-const UNITES = ["u", "m\u00b2", "ml", "m\u00b3", "h", "forfait", "kg", "l", "lot"];
+const UNITES = ["u", "m²", "ml", "m³", "h", "forfait", "kg", "l", "lot"];
 const TVA_RATES = [
   { value: 20, label: "20% (standard)" },
-  { value: 10, label: "10% (r\u00e9novation)" },
-  { value: 5.5, label: "5,5% (am\u00e9lioration \u00e9nerg.)" },
-  { value: 0, label: "0% (exon\u00e9r\u00e9)" },
+  { value: 10, label: "10% (rénovation)" },
+  { value: 5.5, label: "5,5% (amélioration énerg.)" },
+  { value: 0, label: "0% (exonéré)" },
 ];
 
 const DEVIS_STATUS: Record<string, { label: string; color: string }> = {
   BROUILLON: { label: "Brouillon", color: C.muted },
-  ENVOYE: { label: "Envoy\u00e9", color: C.blue },
-  ACCEPTE: { label: "Accept\u00e9", color: C.green },
-  REFUSE: { label: "Refus\u00e9", color: C.red },
-  EXPIRE: { label: "Expir\u00e9", color: C.yellow },
+  ENVOYE: { label: "Envoyé", color: C.blue },
+  ACCEPTE: { label: "Accepté", color: C.green },
+  REFUSE: { label: "Refusé", color: C.red },
+  EXPIRE: { label: "Expiré", color: C.yellow },
 };
 
 const FACTURE_STATUS: Record<string, { label: string; color: string }> = {
   EN_ATTENTE: { label: "En attente", color: C.yellow },
-  PAYEE: { label: "Pay\u00e9e", color: C.green },
+  PAYEE: { label: "Payée", color: C.green },
   EN_RETARD: { label: "En retard", color: C.red },
-  ANNULEE: { label: "Annul\u00e9e", color: C.muted },
+  ANNULEE: { label: "Annulée", color: C.muted },
 };
 
 const FACTURE_TYPE: Record<string, string> = {
@@ -50,7 +50,7 @@ type Lot = { id?: string; titre: string; lignes: Ligne[] };
 type Devis = any;
 type Facture = any;
 
-function fmtMoney(n: number) { return n.toFixed(2).replace(".", ",") + "\u00a0\u20ac"; }
+function fmtMoney(n: number) { return n.toFixed(2).replace(".", ",") + " €"; }
 function fmtDate(d: string) { return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(d)); }
 
 // ─── COMPONENTS ─────────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ export default function DevisFacturesPage() {
   const openNewDevis = () => {
     setFormData({
       objet: "", customerId: customers[0]?.id || "", validUntil: "",
-      conditions: "Paiement \u00e0 30 jours", notes: "", remisePercent: 0,
+      conditions: "Paiement à 30 jours", notes: "", remisePercent: 0,
       lots: [emptyLot(0)],
     });
     setEditId(null);
@@ -369,7 +369,7 @@ export default function DevisFacturesPage() {
           <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 20, marginBottom: 16 }}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <Select label="Client" value={formData.customerId} onChange={(v: string) => setFormData({ ...formData, customerId: v })}
-                options={[{ value: "", label: "— S\u00e9lectionner —" }, ...customers.map(c => ({ value: c.id, label: c.name }))]}
+                options={[{ value: "", label: "— Sélectionner —" }, ...customers.map(c => ({ value: c.id, label: c.name }))]}
                 style={{ flex: 2 }}
               />
               <Btn variant="secondary" small onClick={() => setCustomerForm({ type: "PARTICULIER", name: "", email: "", phone: "", adresse: "", codePostal: "", ville: "" })} style={{ alignSelf: "flex-end" }}>
@@ -377,7 +377,7 @@ export default function DevisFacturesPage() {
               </Btn>
             </div>
             <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-              <Input label="Objet du devis" value={formData.objet} onChange={(v: string) => setFormData({ ...formData, objet: v })} placeholder="R\u00e9novation salle de bain" style={{ flex: 3 }} />
+              <Input label="Objet du devis" value={formData.objet} onChange={(v: string) => setFormData({ ...formData, objet: v })} placeholder="Rénovation salle de bain" style={{ flex: 3 }} />
               <Input label="Valide jusqu'au" type="date" value={formData.validUntil} onChange={(v: string) => setFormData({ ...formData, validUntil: v })} style={{ flex: 1, minWidth: 140 }} />
             </div>
           </div>
@@ -398,7 +398,7 @@ export default function DevisFacturesPage() {
 
               {/* Lignes header */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 100px 90px 32px", gap: 4, padding: "8px 12px", fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>
-                <div>D\u00e9signation</div><div style={{ textAlign: "center" }}>Qt\u00e9</div><div style={{ textAlign: "center" }}>Unit\u00e9</div>
+                <div>Désignation</div><div style={{ textAlign: "center" }}>Qté</div><div style={{ textAlign: "center" }}>Unité</div>
                 <div style={{ textAlign: "right" }}>P.U. HT</div><div style={{ textAlign: "center" }}>TVA</div><div style={{ textAlign: "right" }}>Total</div><div />
               </div>
 
@@ -445,7 +445,7 @@ export default function DevisFacturesPage() {
                       }}
                       style={{ border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, padding: "4px 8px", fontFamily: "'Bricolage Grotesque', sans-serif", color: C.blue, background: `${C.blue}08` }}
                     >
-                      <option value="">+ Depuis biblioth\u00e8que</option>
+                      <option value="">+ Depuis bibliothèque</option>
                       {articles.map(a => <option key={a.id} value={a.id}>{a.categorie ? `[${a.categorie}] ` : ""}{a.designation} — {fmtMoney(a.prixUnitHT)}</option>)}
                     </select>
                   </div>
@@ -468,7 +468,7 @@ export default function DevisFacturesPage() {
               </div>
             </div>
             <div style={{ width: 280, background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>R\u00e9capitulatif</div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>Récapitulatif</div>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
                 <span>Total HT</span><span style={{ fontWeight: 600 }}>{fmtMoney(totals.totalHT)}</span>
               </div>
@@ -501,7 +501,7 @@ export default function DevisFacturesPage() {
               <Input label="Nom / Raison sociale" value={customerForm.name} onChange={(v: string) => setCustomerForm({ ...customerForm, name: v })} placeholder="Jean Dupont" />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <Input label="Email" value={customerForm.email} onChange={(v: string) => setCustomerForm({ ...customerForm, email: v })} placeholder="email@..." />
-                <Input label="T\u00e9l\u00e9phone" value={customerForm.phone} onChange={(v: string) => setCustomerForm({ ...customerForm, phone: v })} placeholder="06..." />
+                <Input label="Téléphone" value={customerForm.phone} onChange={(v: string) => setCustomerForm({ ...customerForm, phone: v })} placeholder="06..." />
               </div>
               <div style={{ marginTop: 8 }}>
                 <Input label="Adresse" value={customerForm.adresse} onChange={(v: string) => setCustomerForm({ ...customerForm, adresse: v })} placeholder="12 rue..." />
@@ -553,7 +553,7 @@ export default function DevisFacturesPage() {
               <Badge label={st.label} color={st.color} />
             </div>
             <div style={{ display: "flex", gap: 20, fontSize: 12, color: C.muted }}>
-              <span>Cr\u00e9\u00e9 le {fmtDate(d.createdAt)}</span>
+              <span>Créé le {fmtDate(d.createdAt)}</span>
               {d.validUntil && <span>Valide jusqu'au {fmtDate(d.validUntil)}</span>}
             </div>
           </div>
@@ -584,10 +584,10 @@ export default function DevisFacturesPage() {
             </div>
           </div>
 
-          {/* Factures li\u00e9es */}
+          {/* Factures liées */}
           {d.factures?.length > 0 && (
             <div style={{ marginTop: 16, background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Factures li\u00e9es</div>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Factures liées</div>
               {d.factures.map((f: any) => (
                 <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", fontSize: 12 }}>
                   <span style={{ fontWeight: 600 }}>{f.number}</span>
@@ -605,7 +605,7 @@ export default function DevisFacturesPage() {
             <div style={{ background: C.surface, borderRadius: 16, padding: 24, width: 380 }}>
               <h3 style={{ fontWeight: 800, fontSize: 16, margin: "0 0 16px" }}>Convertir en facture</h3>
               <Select label="Type" value={convertModal.type} onChange={(v: string) => setConvertModal({ ...convertModal, type: v })}
-                options={[{ value: "FACTURE", label: "Facture compl\u00e8te" }, { value: "ACOMPTE", label: "Acompte" }, { value: "SITUATION", label: "Situation" }]} />
+                options={[{ value: "FACTURE", label: "Facture complète" }, { value: "ACOMPTE", label: "Acompte" }, { value: "SITUATION", label: "Situation" }]} />
               {(convertModal.type === "ACOMPTE" || convertModal.type === "SITUATION") && (
                 <div style={{ marginTop: 8 }}>
                   <Input label="Pourcentage (%)" type="number" value={convertModal.pourcentage} onChange={(v: string) => setConvertModal({ ...convertModal, pourcentage: parseFloat(v) || 0 })} placeholder="30" />
@@ -668,7 +668,7 @@ export default function DevisFacturesPage() {
               <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
                 <FileText size={32} color={C.border} style={{ marginBottom: 8 }} />
                 <div style={{ fontSize: 14 }}>Aucun devis</div>
-                <Btn onClick={openNewDevis} style={{ marginTop: 12 }}><Plus size={14} /> Cr\u00e9er un devis</Btn>
+                <Btn onClick={openNewDevis} style={{ marginTop: 12 }}><Plus size={14} /> Créer un devis</Btn>
               </div>
             ) : filteredDevis.map((d: any) => {
               const st = DEVIS_STATUS[d.status] || { label: d.status, color: C.muted };
@@ -706,7 +706,7 @@ export default function DevisFacturesPage() {
               <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
                 <CreditCard size={32} color={C.border} style={{ marginBottom: 8 }} />
                 <div style={{ fontSize: 14 }}>Aucune facture</div>
-                <div style={{ fontSize: 12, marginTop: 4 }}>Cr\u00e9ez d'abord un devis puis convertissez-le en facture</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>Créez d'abord un devis puis convertissez-le en facture</div>
               </div>
             ) : filteredFactures.map((f: any) => {
               const st = FACTURE_STATUS[f.status] || { label: f.status, color: C.muted };
@@ -730,7 +730,7 @@ export default function DevisFacturesPage() {
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       <Btn variant="ghost" small onClick={() => window.open(`/api/client/factures-btp/${f.id}/pdf`, "_blank")} title="Voir PDF"><Eye size={14} /></Btn>
-                      {f.status === "EN_ATTENTE" && <Btn variant="ghost" small onClick={() => updateFactureStatus(f.id, "PAYEE")} title="Marquer pay\u00e9e"><Check size={14} color={C.green} /></Btn>}
+                      {f.status === "EN_ATTENTE" && <Btn variant="ghost" small onClick={() => updateFactureStatus(f.id, "PAYEE")} title="Marquer payée"><Check size={14} color={C.green} /></Btn>}
                       {f.status === "EN_ATTENTE" && <Btn variant="ghost" small onClick={() => updateFactureStatus(f.id, "EN_RETARD")} title="Marquer en retard"><CreditCard size={14} color={C.red} /></Btn>}
                       <Btn variant="ghost" small onClick={() => deleteFacture(f.id)} title="Supprimer"><Trash2 size={14} color={C.red} /></Btn>
                     </div>
@@ -748,8 +748,8 @@ export default function DevisFacturesPage() {
               {filteredArticles.length === 0 ? (
                 <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
                   <BookOpen size={32} color={C.border} style={{ marginBottom: 8 }} />
-                  <div style={{ fontSize: 14 }}>Biblioth\u00e8que vide</div>
-                  <div style={{ fontSize: 12, marginTop: 4 }}>Ajoutez vos prestations r\u00e9currentes pour les ins\u00e9rer rapidement dans vos devis</div>
+                  <div style={{ fontSize: 14 }}>Bibliothèque vide</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>Ajoutez vos prestations récurrentes pour les insérer rapidement dans vos devis</div>
                 </div>
               ) : filteredArticles.map((a: any) => (
                 <div key={a.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -777,14 +777,14 @@ export default function DevisFacturesPage() {
               <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ background: C.surface, borderRadius: 16, padding: 24, width: 420 }}>
                   <h3 style={{ fontWeight: 800, fontSize: 16, margin: "0 0 16px" }}>{articleForm.id ? "Modifier" : "Nouvel"} article</h3>
-                  <Input label="Cat\u00e9gorie" value={articleForm.categorie || ""} onChange={(v: string) => setArticleForm({ ...articleForm, categorie: v })} placeholder="Plomberie, \u00c9lectricit\u00e9..." />
+                  <Input label="Catégorie" value={articleForm.categorie || ""} onChange={(v: string) => setArticleForm({ ...articleForm, categorie: v })} placeholder="Plomberie, Électricité..." />
                   <div style={{ height: 8 }} />
-                  <Input label="D\u00e9signation" value={articleForm.designation} onChange={(v: string) => setArticleForm({ ...articleForm, designation: v })} placeholder="Pose de carrelage 60x60" />
+                  <Input label="Désignation" value={articleForm.designation} onChange={(v: string) => setArticleForm({ ...articleForm, designation: v })} placeholder="Pose de carrelage 60x60" />
                   <div style={{ height: 8 }} />
-                  <Input label="Description (optionnel)" value={articleForm.description || ""} onChange={(v: string) => setArticleForm({ ...articleForm, description: v })} placeholder="D\u00e9tail..." />
+                  <Input label="Description (optionnel)" value={articleForm.description || ""} onChange={(v: string) => setArticleForm({ ...articleForm, description: v })} placeholder="Détail..." />
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <Input label="Prix unit. HT" type="number" value={articleForm.prixUnitHT} onChange={(v: string) => setArticleForm({ ...articleForm, prixUnitHT: parseFloat(v) || 0 })} />
-                    <Select label="Unit\u00e9" value={articleForm.unite} onChange={(v: string) => setArticleForm({ ...articleForm, unite: v })}
+                    <Select label="Unité" value={articleForm.unite} onChange={(v: string) => setArticleForm({ ...articleForm, unite: v })}
                       options={UNITES.map(u => ({ value: u, label: u }))} />
                     <Select label="TVA" value={articleForm.tauxTVA} onChange={(v: string) => setArticleForm({ ...articleForm, tauxTVA: parseFloat(v) })}
                       options={TVA_RATES} />
@@ -837,7 +837,7 @@ export default function DevisFacturesPage() {
                   <Input label="Nom / Raison sociale" value={customerForm.name} onChange={(v: string) => setCustomerForm({ ...customerForm, name: v })} placeholder="Jean Dupont" />
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <Input label="Email" value={customerForm.email || ""} onChange={(v: string) => setCustomerForm({ ...customerForm, email: v })} />
-                    <Input label="T\u00e9l\u00e9phone" value={customerForm.phone || ""} onChange={(v: string) => setCustomerForm({ ...customerForm, phone: v })} />
+                    <Input label="Téléphone" value={customerForm.phone || ""} onChange={(v: string) => setCustomerForm({ ...customerForm, phone: v })} />
                   </div>
                   <Input label="Adresse" value={customerForm.adresse || ""} onChange={(v: string) => setCustomerForm({ ...customerForm, adresse: v })} style={{ marginTop: 8 }} />
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -862,7 +862,7 @@ export default function DevisFacturesPage() {
           </div>
           <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: C.green }}>{fmtMoney(devisList.filter((d: any) => d.status === "ACCEPTE").reduce((s: number, d: any) => s + d.totalTTC, 0))}</div>
-            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Devis accept\u00e9s</div>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Devis acceptés</div>
           </div>
           <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 24, fontWeight: 800 }}>{facturesList.length}</div>
@@ -870,7 +870,7 @@ export default function DevisFacturesPage() {
           </div>
           <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: C.red }}>{fmtMoney(facturesList.filter((f: any) => f.status === "EN_ATTENTE" || f.status === "EN_RETARD").reduce((s: number, f: any) => s + f.totalTTC - f.montantPaye, 0))}</div>
-            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Reste \u00e0 encaisser</div>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Reste à encaisser</div>
           </div>
         </div>
       </div>
