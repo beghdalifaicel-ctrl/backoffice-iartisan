@@ -118,22 +118,20 @@ export async function GET(req: NextRequest) {
       // Tables Supabase pas encore peuplées, pas grave
     }
 
-    // ─── Agents actifs selon le plan ───────────────────────────────────
+    // ─── Agents actifs selon le plan (aligné sur PLAN_AGENTS de types.ts) ──
+    // ESSENTIEL = ADMIN seul | CROISSANCE = ADMIN + MARKETING | PILOTE_AUTO = tous
     const agentsByPlan: Record<string, { name: string; type: string; desc: string }[]> = {
       ESSENTIEL: [
-        { name: "Agent Leads", type: "COMMERCIAL", desc: "Gère vos prospects et relances" },
+        { name: "Alice", type: "ADMIN", desc: "Gestion emails, devis, factures et relances" },
       ],
       CROISSANCE: [
-        { name: "Agent Leads", type: "COMMERCIAL", desc: "Gère vos prospects et relances" },
-        { name: "Agent Google Ads", type: "MARKETING", desc: "Optimise vos campagnes publicitaires" },
-        { name: "Agent Avis", type: "MARKETING", desc: "Répond aux avis clients" },
+        { name: "Alice", type: "ADMIN", desc: "Gestion emails, devis, factures et relances" },
+        { name: "Marc", type: "MARKETING", desc: "Google Business, avis, SEO et réseaux sociaux" },
       ],
       PILOTE_AUTO: [
-        { name: "Agent Leads", type: "COMMERCIAL", desc: "Gère vos prospects et relances" },
-        { name: "Agent Google Ads", type: "MARKETING", desc: "Optimise vos campagnes publicitaires" },
-        { name: "Agent Avis", type: "MARKETING", desc: "Répond aux avis clients" },
-        { name: "Agent WhatsApp", type: "COMMERCIAL", desc: "Répond aux messages WhatsApp" },
-        { name: "Agent Site Vitrine", type: "MARKETING", desc: "Met à jour votre site web" },
+        { name: "Alice", type: "ADMIN", desc: "Gestion emails, devis, factures et relances" },
+        { name: "Marc", type: "MARKETING", desc: "Google Business, avis, SEO et réseaux sociaux" },
+        { name: "Léa", type: "COMMERCIAL", desc: "Prospection, scraping et emails commerciaux" },
       ],
     };
 
