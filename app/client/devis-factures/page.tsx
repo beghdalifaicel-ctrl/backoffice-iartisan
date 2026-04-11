@@ -220,7 +220,7 @@ function Button({
   style: extraStyle = {},
   icon: IconComponent,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   onClick?: () => void;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md" | "lg";
@@ -289,6 +289,8 @@ function Input({
   placeholder = "",
   type = "text",
   error,
+  style: wrapperStyle,
+  ...rest
 }: {
   label?: string;
   value: any;
@@ -296,9 +298,11 @@ function Input({
   placeholder?: string;
   type?: string;
   error?: string;
+  style?: React.CSSProperties;
+  [key: string]: any;
 }) {
   return (
-    <div style={{ flex: 1 }}>
+    <div style={{ flex: 1, ...wrapperStyle }}>
       {label && (
         <div
           style={{
@@ -341,14 +345,18 @@ function Select({
   value,
   onChange,
   options,
+  style: wrapperStyle,
+  ...rest
 }: {
   label?: string;
   value: any;
   onChange: (v: any) => void;
   options: { value: any; label: string }[];
+  style?: React.CSSProperties;
+  [key: string]: any;
 }) {
   return (
-    <div style={{ flex: 1 }}>
+    <div style={{ flex: 1, ...wrapperStyle }}>
       {label && (
         <div
           style={{
@@ -387,12 +395,15 @@ function Select({
 function Card({
   children,
   style: extraStyle = {},
+  onClick,
 }: {
   children: React.ReactNode;
   style?: React.CSSProperties;
+  onClick?: (e: React.MouseEvent) => void;
 }) {
   return (
     <div
+      onClick={onClick}
       style={{
         background: COLORS.surface,
         borderRadius: "12px",
@@ -417,13 +428,14 @@ function StatCard({
   label: string;
   value: string | number;
   icon: React.ReactNode;
-  variant?: "default" | "success" | "warning" | "danger";
+  variant?: "default" | "success" | "warning" | "danger" | "info";
 }) {
   const variantBgs: Record<string, string> = {
     default: `linear-gradient(135deg, ${COLORS.blue}20 0%, ${COLORS.info}10 100%)`,
     success: `linear-gradient(135deg, ${COLORS.success}20 0%, ${COLORS.emerald}10 100%)`,
     warning: `linear-gradient(135deg, ${COLORS.warning}20 0%, ${COLORS.amber}10 100%)`,
     danger: `linear-gradient(135deg, ${COLORS.danger}20 0%, ${COLORS.red}10 100%)`,
+    info: `linear-gradient(135deg, ${COLORS.violet}20 0%, ${COLORS.blue}10 100%)`,
   };
 
   return (
@@ -456,7 +468,7 @@ function TabNav({
 }: {
   tabs: { id: string; label: string; icon?: React.ReactNode }[];
   activeTab: string;
-  onChange: (tab: string) => void;
+  onChange: (tab: any) => void;
 }) {
   return (
     <div
@@ -551,12 +563,12 @@ function MaterialModal({
       onClick={onClose}
     >
       <Card
+        onClick={(e: any) => e.stopPropagation()}
         style={{
           width: "90%",
           maxWidth: "700px",
           maxHeight: "80vh",
           overflow: "auto",
-          onClick: (e) => e.stopPropagation(),
         }}
       >
         <div
@@ -2643,10 +2655,10 @@ export default function DevisFacturesPage() {
         onClick={() => setConvertModal(null)}
       >
         <Card
+          onClick={(e: any) => e.stopPropagation()}
           style={{
             width: "90%",
             maxWidth: "500px",
-            onClick: (e) => e.stopPropagation(),
           }}
         >
           <h2 style={{ fontSize: "18px", fontWeight: 700, color: COLORS.dark, marginBottom: "16px" }}>
