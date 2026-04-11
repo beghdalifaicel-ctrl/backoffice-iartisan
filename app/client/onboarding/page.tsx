@@ -88,7 +88,7 @@ export default function ClientOnboardingPage() {
   const progressWidth = `${(Math.min(step, totalSteps) / totalSteps) * 100}%`;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+    <div style={{ minHeight: "100dvh" as any, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowX: "hidden" as any }}>
       <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <div style={{
         width: "100%", maxWidth: 440, background: C.surface, borderRadius: 16,
@@ -381,8 +381,8 @@ export default function ClientOnboardingPage() {
               <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginBottom: 24 }}>
                 {agents.map(a => (
                   <div key={a.type} style={{
-                    background: C.bg, borderRadius: 12, padding: "14px 16px",
-                    textAlign: "center", minWidth: 100, flex: "1 1 0",
+                    background: C.bg, borderRadius: 12, padding: "14px 12px",
+                    textAlign: "center", minWidth: 80, flex: "1 1 0", maxWidth: 140,
                   }}>
                     <div style={{ fontSize: 26 }}>{a.emoji}</div>
                     <div style={{ fontWeight: 700, color: C.dark, marginTop: 4, fontSize: 13 }}>{a.role}</div>

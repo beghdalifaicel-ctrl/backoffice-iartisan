@@ -4,14 +4,31 @@
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
 
 body {
   font-family: "Bricolage Grotesque", sans-serif;
   background: #f7f4ef;
   color: #1a1a14;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
+
+/* Mobile safe area + smooth scroll */
+html { height: -webkit-fill-available; scroll-behavior: smooth; }
+
+/* Empêcher le zoom iOS sur les inputs */
+input, select, textarea { font-size: 16px !important; }
+
+/* Touch action pour éviter le double-tap zoom */
+button, a { touch-action: manipulation; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }

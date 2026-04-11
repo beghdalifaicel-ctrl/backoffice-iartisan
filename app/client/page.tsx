@@ -384,7 +384,7 @@ export default function ClientDashboard() {
   const allowed = PLAN_AGENT_ACCESS[plan] || PLAN_AGENT_ACCESS.ESSENTIEL;
 
   return (
-    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", background: C.bg, minHeight: "100vh", color: C.dark, fontSize: 14, maxWidth: 520, margin: "0 auto", position: "relative" }}>
+    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", background: C.bg, minHeight: "100dvh" as any, color: C.dark, fontSize: 14, maxWidth: 520, margin: "0 auto", position: "relative", overflowX: "hidden", width: "100%" }}>
       <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       <div style={{ paddingBottom: 80 }}>
@@ -431,13 +431,13 @@ export default function ClientDashboard() {
                   const textColor = alert.type === "red" ? C.red : alert.type === "orange" ? "#946800" : C.green;
                   const emoji = alert.type === "red" ? "🔴" : alert.type === "orange" ? "🟠" : "🟢";
                   return (
-                    <div key={i} style={{ background: bg, border: `1px solid ${borderColor}`, borderRadius: 12, padding: "14px 16px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 48 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 16 }}>{emoji}</span>
+                    <div key={i} style={{ background: bg, border: `1px solid ${borderColor}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 48, gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>{emoji}</span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: textColor }}>{alert.text}</span>
                       </div>
                       {alert.action && (
-                        <button onClick={() => setPage("actions")} style={{ background: "none", border: "none", fontSize: 12, fontWeight: 600, color: C.accent, cursor: "pointer", padding: "4px 8px", minHeight: 48, display: "flex", alignItems: "center" }}>
+                        <button onClick={() => setPage("actions")} style={{ background: "none", border: "none", fontSize: 12, fontWeight: 600, color: C.accent, cursor: "pointer", padding: "4px 8px", minHeight: 48, display: "flex", alignItems: "center", whiteSpace: "nowrap", flexShrink: 0 }}>
                           {alert.action}
                         </button>
                       )}
@@ -539,14 +539,14 @@ export default function ClientDashboard() {
               {Object.keys(data.leads.byStatus).length > 0 && (
                 <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16 }}>
                   <div style={{ fontWeight: 700, marginBottom: 12 }}>Suivi des demandes</div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 }}>
                     {Object.entries(data.leads.byStatus).map(([status, count]) => {
                       const total = data.leads.total || 1;
                       const pct = Math.round((count / total) * 100);
                       return (
-                        <div key={status} style={{ flex: Math.max(pct, 5), minWidth: 36 }}>
+                        <div key={status} style={{ flex: `${Math.max(pct, 10)} 0 0`, minWidth: 52 }}>
                           <div style={{ height: 8, borderRadius: 4, background: STATUS_LABELS[status]?.color || C.muted, marginBottom: 6 }} />
-                          <div style={{ fontSize: 10, color: C.muted, textAlign: "center" }}>{STATUS_LABELS[status]?.label?.split(" ").pop()}</div>
+                          <div style={{ fontSize: 10, color: C.muted, textAlign: "center", whiteSpace: "nowrap" }}>{STATUS_LABELS[status]?.label?.split(" ").pop()}</div>
                           <div style={{ fontSize: 13, fontWeight: 700, textAlign: "center" }}>{count}</div>
                         </div>
                       );
@@ -907,26 +907,31 @@ export default function ClientDashboard() {
                           {/* Autonomy level */}
                           <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
                             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10, color: C.muted }}>Quel niveau de liberté ?</div>
-                            <div style={{ display: "flex", gap: 6 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                               {AUTONOMY_LEVELS.map(lvl => (
                                 <button
                                   key={lvl.id}
                                   onClick={() => setAutonomyLevels(prev => ({ ...prev, [agentType]: lvl.id }))}
                                   style={{
-                                    flex: 1,
-                                    padding: "10px 6px",
+                                    width: "100%",
+                                    padding: "10px 14px",
                                     borderRadius: 10,
                                     border: `2px solid ${level === lvl.id ? lvl.color : C.border}`,
                                     background: level === lvl.id ? `${lvl.color}10` : C.surface,
                                     cursor: "pointer",
-                                    textAlign: "center",
+                                    textAlign: "left",
                                     fontFamily: "'Bricolage Grotesque', sans-serif",
                                     minHeight: 48,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
                                   }}
                                 >
-                                  <lvl.icon size={16} color={level === lvl.id ? lvl.color : C.muted} style={{ marginBottom: 4 }} />
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: level === lvl.id ? lvl.color : C.dark }}>{lvl.label}</div>
-                                  <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{lvl.desc}</div>
+                                  <lvl.icon size={18} color={level === lvl.id ? lvl.color : C.muted} style={{ flexShrink: 0 }} />
+                                  <div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: level === lvl.id ? lvl.color : C.dark }}>{lvl.label}</div>
+                                    <div style={{ fontSize: 11, color: C.muted }}>{lvl.desc}</div>
+                                  </div>
                                 </button>
                               ))}
                             </div>
@@ -1000,34 +1005,27 @@ export default function ClientDashboard() {
       </div>
 
       {/* ─── BOTTOM NAV — 4 onglets rationalisés ──────────────────── */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 520, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-around", padding: "6px 0 calc(6px + env(safe-area-inset-bottom))", zIndex: 50 }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-around", padding: "4px 0 calc(4px + env(safe-area-inset-bottom))", zIndex: 50 }}>
         {navItems.map(item => {
           const isActive = !("href" in item) && page === item.id;
           const showBadge = item.id === "accueil" && alertCount > 0;
+          const navStyle: React.CSSProperties = { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, textDecoration: "none", background: "none", border: "none", cursor: "pointer", color: isActive ? C.accent : C.muted, padding: "8px 4px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif", flex: 1, minHeight: 52, justifyContent: "center", position: "relative", WebkitTapHighlightColor: "transparent" };
           return "href" in item ? (
-            <a
-              key={item.id}
-              href={item.href}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, textDecoration: "none", color: C.muted, padding: "6px 16px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif", minWidth: 56, minHeight: 48, justifyContent: "center", position: "relative" }}
-            >
-              <item.icon size={20} />
-              {item.label}
+            <a key={item.id} href={item.href} style={navStyle}>
+              <item.icon size={22} />
+              <span>{item.label}</span>
             </a>
           ) : (
-            <button
-              key={item.id}
-              onClick={() => setPage(item.id)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "none", border: "none", cursor: "pointer", color: isActive ? C.accent : C.muted, padding: "6px 16px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif", minWidth: 56, minHeight: 48, justifyContent: "center", position: "relative" }}
-            >
+            <button key={item.id} onClick={() => setPage(item.id)} style={navStyle}>
               <div style={{ position: "relative" }}>
-                <item.icon size={20} />
+                <item.icon size={22} />
                 {showBadge && (
                   <div style={{ position: "absolute", top: -4, right: -8, background: C.red, color: "#fff", fontSize: 9, fontWeight: 800, width: 16, height: 16, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {alertCount}
                   </div>
                 )}
               </div>
-              {item.label}
+              <span>{item.label}</span>
             </button>
           );
         })}

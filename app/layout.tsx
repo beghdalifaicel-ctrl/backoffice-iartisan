@@ -1,6 +1,14 @@
 import "./globals.css";
 import type { Metadata } from "next";
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
   title: "iArtisan — Assistants IA pour artisans du BTP",
   description: "Vos agents IA gèrent emails, devis, factures, Google Business, prospection et relances. 14 jours d'essai gratuit.",
