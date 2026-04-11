@@ -112,6 +112,12 @@ export default function ClientLoginPage() {
           </a>
         </p>
 
+        <p style={{ textAlign: "center", marginTop: 12, marginBottom: 0 }}>
+          <a href="/client/signup" style={{ color: T.accent, fontSize: 13, fontWeight: 600, textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+            Pas encore de compte ? S'inscrire
+          </a>
+        </p>
+
         <p style={{ textAlign: "center", color: T.muted, fontSize: 12, marginTop: 16, marginBottom: 0 }}>
           Espace r&eacute;serv&eacute; aux clients iArtisan.io
         </p>
