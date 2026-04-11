@@ -1,53 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireClient } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireClient();
     const searchParams = req.nextUrl.searchParams;
-
     const q = searchParams.get("q") || "";
     const categorie = searchParams.get("categorie") || "";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    // Build where clause
-    const where: any = {};
+    // Build conditions
+    const conditions: string[] = ["is_active = true"];
+    const params: any[] = [];
+    let paramIdx = 1;
 
     if (q) {
-      where.designation = {
-        mode: "insensitive" as const,
-        contains: q,
-      };
+      conditions.push(`(designation ILIKE $${paramIdx} OR description ILIKE $${paramIdx} OR categorie ILIKE $${paramIdx})`);
+      params.push(`%${q}%`);
+      paramIdx++;
     }
 
     if (categorie) {
-      where.categorie = categorie;
+      conditions.push(`categorie = $${paramIdx}`);
+      params.push(categorie);
+      paramIdx++;
     }
 
-    // Get total count
-    const total = await prisma.materiauxBtp.count({ where });
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // Get materiaux with pagination
-    const materiaux = await prisma.materiauxBtp.findMany({
-      where,
-      skip: offset,
-      take: limit,
-      orderBy: { designation: "asc" },
-    });
+    // Count
+    const countResult: any[] = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*)::int as total FROM materiaux_btp ${whereClause}`,
+      ...params
+    );
+    const total = countResult[0]?.total || 0;
 
-    // Get all distinct categories for filtering
-    const categoriesResult = await prisma.materiauxBtp.findMany({
-      distinct: ["categorie"],
-      select: { categorie: true },
-      orderBy: { categorie: "asc" },
-    });
+    // Get materiaux
+    const materiaux: any[] = await prisma.$queryRawUnsafe(
+      `SELECT id, categorie, sous_categorie as "sousCategorie", designation, description,
+              unite, prix_unitaire_ht as "prixUnitaireHt", taux_tva as "tauxTva",
+              prix_min as "prixMin", prix_max as "prixMax", source, marque
+       FROM materiaux_btp ${whereClause}
+       ORDER BY categorie ASC, designation ASC
+       LIMIT ${limit} OFFSET ${offset}`,
+      ...params
+    );
 
-    const categories = categoriesResult
-      .map((item) => item.categorie)
-      .filter((cat) => cat !== null) as string[];
+    // Get distinct categories
+    const catResult: any[] = await prisma.$queryRawUnsafe(
+      `SELECT DISTINCT categorie FROM materiaux_btp WHERE is_active = true ORDER BY categorie ASC`
+    );
+    const categories = catResult.map((c: any) => c.categorie);
 
     return NextResponse.json({
       materiaux,
@@ -58,10 +62,7 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (e: any) {
-    console.error("Erreur lors de la récupération des matériaux:", e);
-    return NextResponse.json(
-      { error: e.message || "Erreur serveur" },
-      { status: 500 }
-    );
+    console.error("Erreur matériaux:", e);
+    return NextResponse.json({ error: e.message || "Erreur serveur" }, { status: 500 });
   }
 }
