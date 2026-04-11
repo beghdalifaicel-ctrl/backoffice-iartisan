@@ -156,6 +156,7 @@ export default function ClientDashboard() {
   const [taskResult, setTaskResult] = useState<{ id: string; status: string } | null>(null);
   const [toolsHistory, setToolsHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -235,6 +236,19 @@ export default function ClientDashboard() {
       setTaskResult({ id: "", status: "Erreur réseau" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openBillingPortal = async () => {
+    setBillingLoading(true);
+    try {
+      const res = await fetch("/api/client/billing/portal", { method: "POST" });
+      const json = await res.json();
+      if (json.url) window.location.href = json.url;
+    } catch {
+      // silently fail
+    } finally {
+      setBillingLoading(false);
     }
   };
 
@@ -519,6 +533,93 @@ export default function ClientDashboard() {
                   </div>
                 ))}
               </div>
+
+              {/* ── Abonnement ── */}
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginTop: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <CreditCard size={16} /> Abonnement
+              </h3>
+              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Plan actuel</div>
+                    <div style={{ fontWeight: 700, fontSize: 18, marginTop: 2 }}>{PLAN_LABELS[plan]} — {PLAN_PRICES[plan]}€/mois</div>
+                  </div>
+                  {data?.subscription && (
+                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600, background: `${(SUB_STATUS_MAP[data.subscription.status]?.color || C.muted)}30`, color: SUB_STATUS_MAP[data.subscription.status]?.color || C.muted }}>
+                      {SUB_STATUS_MAP[data.subscription.status]?.label || data.subscription.status}
+                    </span>
+                  )}
+                </div>
+
+                {data?.subscription && (
+                  <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.muted }}>
+                    <CalendarDays size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />
+                    Période : {fmtDate(data.subscription.currentPeriodStart)} → {fmtDate(data.subscription.currentPeriodEnd)}
+                    {data.subscription.cancelAtPeriodEnd && (
+                      <div style={{ color: C.red, fontWeight: 600, marginTop: 6, fontSize: 12 }}>
+                        <AlertTriangle size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                        Annulation prévue en fin de période
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {client?.status === "TRIAL" && client?.trialEndsAt && (
+                  <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: C.blue }}>
+                    <Clock size={14} />
+                    <span style={{ fontWeight: 600 }}>Essai gratuit jusqu&apos;au {fmtDate(client.trialEndsAt)}</span>
+                  </div>
+                )}
+
+                {data?.upcomingInvoice && (
+                  <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.dark }}>
+                    <CreditCard size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />
+                    Prochaine facture : <strong>{(data.upcomingInvoice.amount / 100).toFixed(2)}€</strong>
+                    {data.upcomingInvoice.date && ` le ${fmtDate(data.upcomingInvoice.date)}`}
+                  </div>
+                )}
+
+                <div style={{ padding: "14px 16px" }}>
+                  <button
+                    onClick={openBillingPortal}
+                    disabled={billingLoading}
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "none", background: C.dark, color: "#fff", fontWeight: 700, fontSize: 14, cursor: billingLoading ? "not-allowed" : "pointer", fontFamily: "'Bricolage Grotesque', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: billingLoading ? 0.6 : 1 }}
+                  >
+                    {billingLoading ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                    {billingLoading ? "Redirection..." : "Gérer mon abonnement"}
+                  </button>
+                  <p style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 8, marginBottom: 0 }}>
+                    Modifier le plan, mettre à jour la CB, télécharger les factures
+                  </p>
+                </div>
+              </div>
+
+              {/* ── Dernières factures ── */}
+              {allInvoices.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, marginTop: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                    <FileText size={16} /> Dernières factures
+                  </h3>
+                  <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                    {allInvoices.slice(0, 5).map((inv: any, i: number) => (
+                      <div key={inv.id} style={{ padding: "12px 16px", borderBottom: i < Math.min(allInvoices.length, 5) - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{inv.number}</div>
+                          <div style={{ fontSize: 11, color: C.muted }}>{fmtDate(inv.createdAt)}</div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontWeight: 700, fontSize: 14 }}>{(inv.amount / 100).toFixed(2)}€</span>
+                          {inv.stripePaymentUrl && (
+                            <a href={inv.stripePaymentUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.accent, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
+                              PDF ↗
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
 
