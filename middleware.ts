@@ -5,12 +5,47 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || "dev-secret-ch
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const hostname = req.headers.get("host") || "";
+
+  // ─── Séparation domaines : app.iartisan.io = espace client/admin uniquement ───
+  // Sur app.iartisan.io, les pages publiques (landing, CGV, mentions...) redirigent vers www
+  const isAppDomain = hostname.startsWith("app.");
+  const isPublicPage = !pathname.startsWith("/client") &&
+    !pathname.startsWith("/admin") &&
+    !pathname.startsWith("/api") &&
+    !pathname.startsWith("/login") &&
+    !pathname.startsWith("/_next") &&
+    !pathname.startsWith("/favicon");
+
+  if (isAppDomain && isPublicPage) {
+    // Rediriger vers le dashboard client si connecté, sinon login
+    const token = req.cookies.get("ia-session")?.value;
+    if (token) {
+      try {
+        const { payload } = await jwtVerify(token, secret);
+        const role = (payload as any).role;
+        if (role === "admin") {
+          return NextResponse.redirect(new URL("/admin", req.url));
+        }
+        return NextResponse.redirect(new URL("/client", req.url));
+      } catch {
+        return NextResponse.redirect(new URL("/client/login", req.url));
+      }
+    }
+    return NextResponse.redirect(new URL("/client/login", req.url));
+  }
+
+  // Sur www (ou localhost), les pages publiques (landing, CGV, etc.) passent librement
+  if (!isAppDomain && isPublicPage) {
+    return NextResponse.next();
+  }
 
   // Routes publiques — ne pas protéger
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/client/login") ||
     pathname.startsWith("/client/forgot-password") ||
+    pathname.startsWith("/client/signup") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/client/auth") ||
     pathname.startsWith("/api/leads") ||
@@ -75,12 +110,10 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/admin/:path*",
-    "/client/:path*",
-    "/api/admin/:path*",
-    "/api/clients/:path*",
-    "/api/client/:path*",
-    "/api/stats/:path*",
-    "/api/agents/:path*",
+    /*
+     * Match all routes EXCEPT static assets (_next/static, _next/image, favicon.ico)
+     * This is needed so the middleware can redirect public pages on app.iartisan.io
+     */
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
   ],
 };
