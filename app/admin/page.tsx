@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Home, Users, TrendingUp, DollarSign, FileText, Activity, Settings, Bell, Star, ArrowUpRight, ArrowDownRight, Zap, UserPlus, CreditCard, AlertCircle, X as XIcon, Globe, Plus, Search, Eye, Edit, Trash2, Phone, Mail, Download, ChevronRight, RefreshCw, Send, CheckCircle, Clock, LogOut, Menu } from "lucide-react";
+import { Home, Users, TrendingUp, DollarSign, FileText, Activity, Settings, Bell, Star, ArrowUpRight, ArrowDownRight, Zap, UserPlus, CreditCard, AlertCircle, X as XIcon, Globe, Plus, Search, Eye, Edit, Trash2, Phone, Mail, Download, ChevronRight, RefreshCw, Send, CheckCircle, Clock, LogOut, Menu, Bot, AlertTriangle, Loader2 } from "lucide-react";
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [clients, setClients] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [agentsData, setAgentsData] = useState<any>(null);
 
   // Fetch data
   useEffect(() => {
@@ -30,7 +31,8 @@ export default function AdminDashboard() {
       fetch("/api/stats").then(r => r.ok ? r.json() : null),
       fetch("/api/clients").then(r => r.ok ? r.json() : { clients: [] }),
       fetch("/api/leads").then(r => r.ok ? r.json() : { leads: [] }),
-    ]).then(([s, c, l]) => {
+      fetch("/api/admin/agents").then(r => r.ok ? r.json() : null),
+    ]).then(([s, c, l, ag]) => {
       setStats(s && s.plans ? s : {
         clients: { total: 0, active: 0, trial: 0, churned: 0, pastDue: 0 },
         revenue: { mrr: 0, arr: 0, arpu: 0, thisMonth: 0, unpaidCount: 0, unpaidAmount: 0 },
@@ -39,6 +41,7 @@ export default function AdminDashboard() {
       });
       setClients(c.clients || []);
       setLeads(l.leads || []);
+      setAgentsData(ag);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -55,6 +58,7 @@ export default function AdminDashboard() {
     { id: "dashboard", label: "Accueil", icon: Home },
     { id: "clients", label: "Clients", icon: Users },
     { id: "leads", label: "Leads", icon: TrendingUp },
+    { id: "agents", label: "Agents", icon: Bot },
     { id: "factures", label: "Factures", icon: FileText },
     { id: "settings", label: "Réglages", icon: Settings },
   ];
@@ -83,6 +87,7 @@ export default function AdminDashboard() {
               {page === "dashboard" && "Dashboard"}
               {page === "clients" && "Clients"}
               {page === "leads" && "Leads"}
+              {page === "agents" && "Agents IA"}
               {page === "factures" && "Factures"}
               {page === "settings" && "Réglages"}
             </div>
@@ -90,6 +95,7 @@ export default function AdminDashboard() {
               {page === "dashboard" && "Back-office iArtisan · Données réelles"}
               {page === "clients" && `${stats?.clients.total || 0} clients au total`}
               {page === "leads" && `${stats?.leads.total || 0} leads au total`}
+              {page === "agents" && "Monitoring global des agents"}
               {page === "factures" && "Facturation Stripe"}
               {page === "settings" && "Configuration"}
             </div>
@@ -265,6 +271,143 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {/* ─── AGENTS MONITORING ──────────────────────────── */}
+        {page === "agents" && (
+          <div style={{ padding: "16px" }}>
+            {!agentsData ? (
+              <div style={{ background: C.surface, borderRadius: 16, padding: "32px 20px", border: `1px solid ${C.border}`, textAlign: "center" }}>
+                <Bot size={32} color={C.muted} style={{ margin: "0 auto 12px", display: "block" }} />
+                <p style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>Aucune donnée agent</p>
+                <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Les stats apparaîtront quand les clients utiliseront les outils agents.</p>
+              </div>
+            ) : (
+              <>
+                {/* KPI Cards */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                  {[
+                    { label: "Tâches total", val: agentsData.kpis.totalTasks, dot: C.dark },
+                    { label: "Taux succès", val: `${agentsData.kpis.successRate}%`, dot: C.green },
+                    { label: "Aujourd'hui", val: agentsData.kpis.todayTotal, dot: C.accent },
+                    { label: "En attente", val: agentsData.kpis.pending, dot: C.yellow },
+                  ].map(k => (
+                    <div key={k.label} style={{ background: C.surface, borderRadius: 14, padding: 14, border: `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: k.dot }} />
+                        <span style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{k.label}</span>
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: C.dark, marginTop: 4 }}>{k.val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Cost + Tokens row */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+                  <div style={{ background: C.surface, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}`, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800 }}>{(agentsData.kpis.totalTokens / 1000).toFixed(0)}k</div>
+                    <div style={{ fontSize: 10, color: C.muted }}>Tokens (mois)</div>
+                  </div>
+                  <div style={{ background: C.surface, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}`, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800 }}>{(agentsData.kpis.totalCostCents / 100).toFixed(2)}€</div>
+                    <div style={{ fontSize: 10, color: C.muted }}>Coût (mois)</div>
+                  </div>
+                  <div style={{ background: C.surface, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}`, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800 }}>{(agentsData.kpis.avgDurationMs / 1000).toFixed(1)}s</div>
+                    <div style={{ fontSize: 10, color: C.muted }}>Durée moy.</div>
+                  </div>
+                </div>
+
+                {/* Daily trend chart */}
+                {agentsData.dailyTrend && agentsData.dailyTrend.some((d: any) => d.total > 0) && (
+                  <div style={{ background: C.surface, borderRadius: 14, padding: "14px 8px 8px", border: `1px solid ${C.border}`, marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, padding: "0 8px", marginBottom: 10 }}>Activité (7 jours)</div>
+                    <ResponsiveContainer width="100%" height={120}>
+                      <BarChart data={agentsData.dailyTrend}>
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => new Date(v).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} />
+                        <Tooltip labelFormatter={(v: string) => new Date(v).toLocaleDateString("fr-FR")} />
+                        <Bar dataKey="completed" fill={C.green} radius={[4, 4, 0, 0]} stackId="a" name="OK" />
+                        <Bar dataKey="failed" fill="#ef4444" radius={[4, 4, 0, 0]} stackId="a" name="Fail" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* By agent type */}
+                {Object.keys(agentsData.byAgent).length > 0 && (
+                  <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 16 }}>
+                    <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: 13 }}>Par type d'agent</div>
+                    {Object.entries(agentsData.byAgent).map(([type, data]: [string, any]) => {
+                      const rate = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
+                      const agentColor = type === "ADMIN" ? "#2563eb" : type === "MARKETING" ? C.green : C.accent;
+                      return (
+                        <div key={type} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: `${agentColor}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <Bot size={14} color={agentColor} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{type === "ADMIN" ? "Alice (Admin)" : type === "MARKETING" ? "Marc (Marketing)" : "Léa (Commercial)"}</div>
+                            <div style={{ fontSize: 11, color: C.muted }}>{data.total} tâches · {rate}% succès</div>
+                          </div>
+                          <div style={{ display: "flex", gap: 6, fontSize: 11 }}>
+                            <span style={{ color: C.green, fontWeight: 700 }}>{data.completed}</span>
+                            <span style={{ color: C.muted }}>/</span>
+                            <span style={{ color: "#ef4444", fontWeight: 700 }}>{data.failed}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Top task types */}
+                {agentsData.topTaskTypes && agentsData.topTaskTypes.length > 0 && (
+                  <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 16 }}>
+                    <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: 13 }}>Top tâches (ce mois)</div>
+                    {agentsData.topTaskTypes.map((t: any, i: number) => (
+                      <div key={i} style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 12 }}>{t.type.replace(/\./g, " → ")}</span>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>{t.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Recent tasks log */}
+                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                  <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: 13 }}>Dernières tâches</div>
+                  {agentsData.recentTasks.length === 0 ? (
+                    <div style={{ padding: 20, textAlign: "center", color: C.muted, fontSize: 12 }}>Aucune tâche</div>
+                  ) : (
+                    agentsData.recentTasks.slice(0, 15).map((t: any) => {
+                      const statusMap: Record<string, { label: string; color: string }> = {
+                        COMPLETED: { label: "OK", color: C.green },
+                        FAILED: { label: "Fail", color: "#ef4444" },
+                        PENDING: { label: "Attente", color: C.yellow },
+                        PROCESSING: { label: "En cours", color: "#2563eb" },
+                      };
+                      const s = statusMap[t.status] || { label: t.status, color: C.muted };
+                      return (
+                        <div key={t.id} style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>{t.taskType?.replace(/\./g, " → ")}</div>
+                            <div style={{ fontSize: 10, color: C.muted }}>
+                              {t.agentType} · {t.clientId?.slice(0, 8)} · {new Date(t.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              {t.retryCount > 0 && ` · ${t.retryCount} retry`}
+                            </div>
+                            {t.error && <div style={{ fontSize: 10, color: "#ef4444", marginTop: 2 }}>{t.error.slice(0, 80)}</div>}
+                          </div>
+                          <span style={{ fontSize: 10, background: `${s.color}15`, color: s.color, padding: "2px 8px", borderRadius: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
+                            {s.label}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}
