@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { ArrowRight, ArrowLeft, Check, Mail, MessageCircle, Building, Sparkles, Zap, FileText, Send } from "lucide-react";
 
+// ─── CONFIG ──────────────────────────
+const WA_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
+
 // ─── DESIGN TOKENS ───────────────────
 const C = {
   bg: "#f7f4ef", dark: "#1a1a14", accent: "#ff5c00", green: "#2d6a4f",
@@ -356,7 +359,7 @@ export default function ClientOnboardingPage() {
                   <div style={{ display: "inline-block", background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
                     {clientId && (
                       <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://wa.me/33176340256?text=link_${clientId}`)}&margin=0`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://wa.me/${WA_NUMBER}?text=link_${clientId}`)}&margin=0`}
                         alt="QR Code WhatsApp"
                         width={180} height={180}
                         style={{ display: "block", borderRadius: 4 }}
@@ -367,7 +370,7 @@ export default function ClientOnboardingPage() {
                 </div>
 
                 <a
-                  href={`https://wa.me/33176340256?text=link_${clientId}`}
+                  href={`https://wa.me/${WA_NUMBER}?text=link_${clientId}`}
                   target="_blank" rel="noopener noreferrer"
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,

@@ -154,8 +154,8 @@ export default function LandingPage() {
               <a href="#pricing" style={{ color: C.dark, textDecoration: "none", fontWeight: 600, fontSize: 14 }}>Tarifs</a>
               <a href="#temoignages" style={{ color: C.dark, textDecoration: "none", fontWeight: 600, fontSize: 14 }}>Témoignages</a>
             </div>
-            <a href="tel:+33176340256" style={{ color: C.dark, fontWeight: 600, fontSize: 14, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              📞 01 76 34 02 56
+            <a href="mailto:contact@iartisan.io" style={{ color: C.dark, fontWeight: 600, fontSize: 14, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+              ✉️ contact@iartisan.io
             </a>
             <a href="/client/login" style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.dark, fontWeight: 600, fontSize: 13, textDecoration: "none" }}>Connexion</a>
             <a href="/client/signup" style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>Essai gratuit</a>
@@ -601,7 +601,7 @@ export default function LandingPage() {
             }}>
               Démarrer mon essai gratuit →
             </a>
-            <a href="tel:+33176340256" style={{
+            <a href="mailto:contact@iartisan.io" style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 8,
@@ -614,7 +614,7 @@ export default function LandingPage() {
               textDecoration: "none",
               border: "1px solid rgba(255,255,255,0.3)",
             }}>
-              📞 Être rappelé
+              ✉️ Nous contacter
             </a>
           </div>
           {/* Micro testimonial */}
@@ -643,10 +643,7 @@ export default function LandingPage() {
                 L&apos;assistant IA des artisans du bâtiment.
               </p>
               <div style={{ marginTop: 12 }}>
-                <a href="tel:+33176340256" style={{ color: "#fff", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>📞 01 76 34 02 56</a>
-              </div>
-              <div style={{ marginTop: 6 }}>
-                <a href="mailto:contact@iartisan.io" style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, textDecoration: "none" }}>contact@iartisan.io</a>
+                <a href="mailto:contact@iartisan.io" style={{ color: "#fff", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>✉️ contact@iartisan.io</a>
               </div>
             </div>
             {/* Produit */}
@@ -697,8 +694,8 @@ export default function LandingPage() {
         <a href="/client/signup" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 0", borderRadius: 10, background: C.accent, color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
           Essai gratuit 14j
         </a>
-        <a href="tel:+33176340256" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 18px", borderRadius: 10, background: C.surface, color: C.dark, fontWeight: 600, fontSize: 14, textDecoration: "none", border: `1px solid ${C.border}` }}>
-          📞 Appeler
+        <a href="mailto:contact@iartisan.io" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 18px", borderRadius: 10, background: C.surface, color: C.dark, fontWeight: 600, fontSize: 14, textDecoration: "none", border: `1px solid ${C.border}` }}>
+          ✉️ Contact
         </a>
       </div>
 

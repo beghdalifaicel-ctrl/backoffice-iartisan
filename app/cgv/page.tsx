@@ -83,7 +83,7 @@ export default function CGV() {
 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 28, marginBottom: 12 }}>12. Contact</h2>
           <p>
-            Pour toute question relative aux présentes CGV : contact@iartisan.io ou 01 76 34 02 56.
+            Pour toute question relative aux présentes CGV : contact@iartisan.io.
           </p>
         </div>
       </div>

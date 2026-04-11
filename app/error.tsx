@@ -68,7 +68,7 @@ export default function Error({
         </a>
       </div>
       <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 24 }}>
-        Besoin d&apos;aide ? Appelez le 01 76 34 02 56
+        Besoin d&apos;aide ? contact@iartisan.io
       </p>
     </div>
   );

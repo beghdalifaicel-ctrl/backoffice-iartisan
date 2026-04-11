@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { Home, Zap, FileText, User, LogOut, TrendingUp, ArrowUpRight, ArrowDownRight, Phone, Clock, CheckCircle, Star, CreditCard, Edit, Save, Activity, AlertTriangle, CalendarDays, Play, Search, Mail, MessageSquare, Globe, BarChart3, FileEdit, Send, RefreshCw, Loader2, ChevronRight, X, Bell, Shield, ShieldCheck, Rocket, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Eye, Link2, Unlink, QrCode } from "lucide-react";
 
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+const WA_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
+
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
   bg: "#f7f4ef", dark: "#1a1a14", accent: "#ff5c00", green: "#2d6a4f",
@@ -985,13 +988,13 @@ export default function ClientDashboard() {
                   <div style={{ padding: "12px 16px", background: `${C.bg}` }}>
                     <div style={{ textAlign: "center" }}>
                       <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`https://wa.me/33176340256?text=link_${profile?.id || ""}`)}`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`https://wa.me/${WA_NUMBER}?text=link_${profile?.id || ""}`)}`}
                         alt="WhatsApp QR"
                         style={{ width: 120, height: 120, borderRadius: 8, margin: "0 auto 8px" }}
                       />
                       <div style={{ fontSize: 12, color: C.muted }}>Scannez ou cliquez ci-dessous</div>
                       <a
-                        href={`https://wa.me/33176340256?text=link_${profile?.id || ""}`}
+                        href={`https://wa.me/${WA_NUMBER}?text=link_${profile?.id || ""}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "10px 20px", background: "#25D366", color: "#fff", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif" }}

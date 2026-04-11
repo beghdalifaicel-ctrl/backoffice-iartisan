@@ -24,7 +24,6 @@ export default function MentionsLegales() {
           </p>
           <p style={{ marginTop: 8 }}>
             Siège social : Paris, France<br />
-            Numéro de téléphone : 01 76 34 02 56<br />
             Adresse email : contact@iartisan.io<br />
             Directeur de la publication : Faicel Beghdali
           </p>
