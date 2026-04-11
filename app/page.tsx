@@ -112,20 +112,20 @@ export default function LandingPage() {
 
       {/* ─── HERO ─── */}
       <section style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 20px 60px", textAlign: "center" }}>
-        <div style={{ display: "inline-block", background: `${C.green}15`, color: C.green, padding: "6px 16px", borderRadius: 20, fontSize: 13, fontWeight: 600, marginBottom: 20 }}>
+        <div className="animate-fade-in" style={{ display: "inline-block", background: `${C.green}15`, color: C.green, padding: "6px 16px", borderRadius: 20, fontSize: 13, fontWeight: 600, marginBottom: 20 }}>
           14 jours d'essai gratuit — sans engagement
         </div>
-        <h1 style={{ fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 800, lineHeight: 1.15, margin: "0 0 20px", maxWidth: 800, marginLeft: "auto", marginRight: "auto" }}>
+        <h1 className="animate-fade-in-up delay-100" style={{ fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 800, lineHeight: 1.15, margin: "0 0 20px", maxWidth: 800, marginLeft: "auto", marginRight: "auto" }}>
           Vos assistants IA gèrent votre <span style={{ color: C.accent }}>administratif</span>, <span style={{ color: C.green }}>marketing</span> et <span style={{ color: C.blue }}>commercial</span>
         </h1>
-        <p style={{ fontSize: "clamp(16px, 2vw, 20px)", color: C.muted, maxWidth: 600, margin: "0 auto 32px", lineHeight: 1.6 }}>
+        <p className="animate-fade-in-up delay-200" style={{ fontSize: "clamp(16px, 2vw, 20px)", color: C.muted, maxWidth: 600, margin: "0 auto 32px", lineHeight: 1.6 }}>
           Pendant que vous êtes sur vos chantiers, Alice, Marc et Léa gèrent vos emails, devis, Google Business, prospection et relances.
         </p>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="/client/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "16px 32px", borderRadius: 12, background: C.accent, color: "#fff", fontWeight: 700, fontSize: 17, textDecoration: "none", boxShadow: "0 4px 16px rgba(255,92,0,0.3)" }}>
+        <div className="animate-fade-in-up delay-300" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <a href="/client/signup" className="cta-pulse" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "16px 32px", borderRadius: 12, background: C.accent, color: "#fff", fontWeight: 700, fontSize: 17, textDecoration: "none", boxShadow: "0 4px 16px rgba(255,92,0,0.3)" }}>
             Démarrer gratuitement →
           </a>
-          <a href="#pricing" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "16px 32px", borderRadius: 12, background: C.surface, color: C.dark, fontWeight: 600, fontSize: 17, textDecoration: "none", border: `1px solid ${C.border}` }}>
+          <a href="#pricing" className="hover-lift" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "16px 32px", borderRadius: 12, background: C.surface, color: C.dark, fontWeight: 600, fontSize: 17, textDecoration: "none", border: `1px solid ${C.border}` }}>
             Voir les tarifs
           </a>
         </div>
@@ -136,8 +136,8 @@ export default function LandingPage() {
             { name: "Alice", role: "Admin", emoji: "📋", color: C.blue, tasks: "Emails · Devis · Factures · Relances" },
             { name: "Marc", role: "Marketing", emoji: "📢", color: C.green, tasks: "Google Business · SEO · Avis · Réseaux sociaux" },
             { name: "Léa", role: "Commercial", emoji: "💼", color: C.accent, tasks: "Prospection · Qualification · Emails · Annuaires" },
-          ].map(agent => (
-            <div key={agent.name} style={{ background: C.surface, borderRadius: 16, padding: "24px 20px", border: `2px solid ${C.border}`, width: 260, textAlign: "center", transition: "border-color 0.2s" }}>
+          ].map((agent, idx) => (
+            <div key={agent.name} className="hover-lift hover-glow animate-fade-in-up" style={{ background: C.surface, borderRadius: 16, padding: "24px 20px", border: `2px solid ${C.border}`, width: 260, textAlign: "center", animationDelay: `${0.3 + idx * 0.15}s` }}>
               <div style={{ fontSize: 44, marginBottom: 8 }}>{agent.emoji}</div>
               <div style={{ fontWeight: 800, fontSize: 20 }}>{agent.name}</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: agent.color, marginBottom: 8 }}>Agent {agent.role}</div>
@@ -156,7 +156,7 @@ export default function LandingPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
             {FEATURES.map((f, i) => (
-              <div key={i} style={{ background: C.bg, borderRadius: 14, padding: "24px 20px", border: `1px solid ${C.border}` }}>
+              <div key={i} className="hover-lift" style={{ background: C.bg, borderRadius: 14, padding: "24px 20px", border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 32, marginBottom: 10 }}>{f.emoji}</div>
                 <h3 style={{ fontWeight: 700, fontSize: 17, margin: "0 0 6px" }}>{f.title}</h3>
                 <p style={{ color: C.muted, fontSize: 14, margin: 0, lineHeight: 1.6 }}>{f.desc}</p>
@@ -214,7 +214,7 @@ export default function LandingPage() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, alignItems: "start" }}>
           {PLANS.map(plan => (
-            <div key={plan.key} style={{
+            <div key={plan.key} className="hover-lift" style={{
               background: C.surface,
               borderRadius: 16,
               padding: "28px 24px",
@@ -308,7 +308,7 @@ export default function LandingPage() {
         <p style={{ color: C.muted, fontSize: 17, maxWidth: 500, margin: "0 auto 32px", lineHeight: 1.6 }}>
           Rejoignez les artisans qui laissent l'IA gérer leur administratif.
         </p>
-        <a href="/client/signup" style={{
+        <a href="/client/signup" className="cta-pulse" style={{
           display: "inline-flex",
           alignItems: "center",
           gap: 8,
