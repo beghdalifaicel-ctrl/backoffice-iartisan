@@ -9,10 +9,17 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { handleChannelMessage } from '@/lib/channels/handler';
+import { analyzeImageForQuote } from '@/lib/channels/vision';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const GROQ_API_KEY = process.env.GROQ_API_KEY; // For Whisper transcription (free tier)
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // Telegram sends updates as POST
 export async function POST(request: NextRequest) {
@@ -67,9 +74,109 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Ignore other non-text messages (photos, stickers, etc.)
+  // Handle photo messages → Devis par photo via Pixtral
+  if (!text && message.photo && message.photo.length > 0) {
+    try {
+      // Get client info for the photo analysis
+      const { data: link } = await supabase
+        .from('channel_links')
+        .select('client_id')
+        .eq('channel', 'telegram')
+        .eq('channel_user_id', chatId)
+        .eq('is_active', true)
+        .single();
+
+      if (!link) {
+        await sendTelegramMessage(chatId, "📸 Pour analyser une photo, liez d'abord votre compte.\nEnvoyez votre code de liaison (ex: link_votre-client-id).");
+        return NextResponse.json({ ok: true });
+      }
+
+      const { data: client } = await supabase
+        .from('clients')
+        .select('id, company, metier, ville, firstName')
+        .eq('id', link.client_id)
+        .single();
+
+      if (!client) {
+        await sendTelegramMessage(chatId, "❌ Compte introuvable.");
+        return NextResponse.json({ ok: true });
+      }
+
+      // Get agent name for the response
+      const { data: agentConfig } = await supabase
+        .from('agent_configs')
+        .select('display_name')
+        .eq('client_id', client.id)
+        .eq('agent_type', 'ADMIN')
+        .single();
+      const agentName = agentConfig?.display_name || 'Alice';
+
+      await sendTelegramMessage(chatId, `📸 *${agentName}* analyse votre photo...`);
+
+      // Get the largest photo (last in array)
+      const photo = message.photo[message.photo.length - 1];
+      const fileRes = await fetch(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${photo.file_id}`
+      );
+      const fileData = await fileRes.json();
+
+      if (!fileData.ok || !fileData.result?.file_path) {
+        await sendTelegramMessage(chatId, "❌ Impossible de télécharger la photo.");
+        return NextResponse.json({ ok: true });
+      }
+
+      // Download image
+      const imageUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${fileData.result.file_path}`;
+      const imageRes = await fetch(imageUrl);
+      const imageBuffer = await imageRes.arrayBuffer();
+      const base64 = Buffer.from(imageBuffer).toString('base64');
+      const ext = (fileData.result.file_path as string).split('.').pop() || 'jpg';
+      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+      // Analyze with Pixtral
+      const caption = message.caption || undefined;
+      const analysis = await analyzeImageForQuote(base64, mimeType, {
+        company: client.company,
+        metier: client.metier,
+        ville: client.ville,
+        firstName: client.firstName,
+        caption,
+      });
+
+      if (analysis.error) {
+        await sendTelegramMessage(chatId, `❌ Erreur d'analyse : ${analysis.error}`);
+        return NextResponse.json({ ok: true });
+      }
+
+      const badge = `📸 *${agentName} — Devis Photo*\n\n`;
+      const responseText = analysis.devisEstimatif || analysis.description || "Analyse terminée mais aucun devis n'a pu être généré.";
+      await sendTelegramMessage(chatId, badge + responseText);
+
+      // Log
+      try {
+        await supabase.from('agent_logs').insert({
+          client_id: client.id,
+          agent_type: 'ADMIN',
+          action: 'telegram.photo_quote',
+          tokens_used: 0,
+          model_used: 'pixtral-large-latest',
+          duration_ms: 0,
+          cost_cents: 5,
+          metadata: { telegram_chat_id: chatId, caption },
+        });
+      } catch (_) { /* log failure is non-critical */ }
+
+      return NextResponse.json({ ok: true });
+    } catch (err: any) {
+      console.error('Telegram photo analysis error:', err);
+      await sendTelegramMessage(chatId, "❌ Erreur lors de l'analyse de la photo. Réessayez.");
+      return NextResponse.json({ ok: true });
+    }
+  }
+
+  // Ignore other non-text messages (stickers, documents, etc.)
   if (!text) {
-    await sendTelegramMessage(chatId, "📝 Je ne comprends que les messages texte et vocaux pour l'instant.");
+    await sendTelegramMessage(chatId, "📝 Je comprends les messages texte, vocaux et photos. Les autres types ne sont pas encore supportés.");
     return NextResponse.json({ ok: true });
   }
 
