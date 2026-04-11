@@ -684,7 +684,8 @@ function MaterialModal({
 
 export default function DevisFacturesPage() {
   // State
-  const [tab, setTab] = useState<"devis" | "factures" | "articles" | "clients" | "agent-devis">("devis");
+  const [tab, setTab] = useState<"devis" | "factures" | "articles" | "clients">("devis");
+  const [newDevisMenu, setNewDevisMenu] = useState(false);
   const [view, setView] = useState<"list" | "form" | "detail">("list");
   const [devisList, setDevisList] = useState<Devis[]>([]);
   const [facturesList, setFacturesList] = useState<Facture[]>([]);
@@ -932,7 +933,6 @@ export default function DevisFacturesPage() {
 
   const tabs = [
     { id: "devis", label: "Devis", icon: <FileText size={18} /> },
-    { id: "agent-devis", label: "Devis IA", icon: <Sparkles size={18} /> },
     { id: "factures", label: "Factures", icon: <CreditCard size={18} /> },
     { id: "articles", label: "Articles", icon: <Package size={18} /> },
     { id: "clients", label: "Clients", icon: <Users size={18} /> },
@@ -961,21 +961,70 @@ export default function DevisFacturesPage() {
                 Devis
               </h1>
               <p style={{ fontSize: "14px", color: COLORS.muted, marginTop: "4px" }}>
-                Gérez vos devis professionnels
+                Manuels et générés par l&apos;IA — tout au même endroit
               </p>
             </div>
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={openNewDevis}
-              icon={<Plus size={18} />}
-            >
-              Nouveau devis
-            </Button>
+            <div style={{ position: "relative" }}>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => setNewDevisMenu(!newDevisMenu)}
+                icon={<Plus size={18} />}
+              >
+                Nouveau devis
+              </Button>
+              {newDevisMenu && (
+                <>
+                  <div style={{ position: "fixed", inset: 0, zIndex: 90 }} onClick={() => setNewDevisMenu(false)} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 100,
+                    background: COLORS.surface, borderRadius: "12px", border: `1px solid ${COLORS.border}`,
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.12)", minWidth: "280px", overflow: "hidden",
+                  }}>
+                    <button
+                      onClick={() => { setNewDevisMenu(false); openNewDevis(); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "12px", width: "100%",
+                        padding: "14px 16px", background: "none", border: "none", borderBottom: `1px solid ${COLORS.border}`,
+                        cursor: "pointer", textAlign: "left", fontSize: "14px",
+                      }}
+                    >
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${COLORS.orange}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <FileText size={16} color={COLORS.orange} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: COLORS.dark }}>Remplir moi-même</div>
+                        <div style={{ fontSize: "12px", color: COLORS.muted }}>Créer un devis manuellement</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setNewDevisMenu(false);
+                        // Trigger AI devis via the agent task API
+                        window.location.href = "/client#actions";
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "12px", width: "100%",
+                        padding: "14px 16px", background: "none", border: "none",
+                        cursor: "pointer", textAlign: "left", fontSize: "14px",
+                      }}
+                    >
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${COLORS.violet}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Sparkles size={16} color={COLORS.violet} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: COLORS.dark }}>L&apos;assistant le prépare</div>
+                        <div style={{ fontSize: "12px", color: COLORS.muted }}>Devis généré par l&apos;IA à valider</div>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Stats */}
-          <div style={{ display: "flex", gap: "16px", marginBottom: "32px" }}>
+          <div style={{ display: "flex", gap: "16px", marginBottom: "32px", flexWrap: "wrap" }}>
             <StatCard
               label="Devis total"
               value={filtered.length}
@@ -1003,6 +1052,59 @@ export default function DevisFacturesPage() {
               variant="success"
             />
           </div>
+
+          {/* Agent Devis — pending, integrated */}
+          {agentDevisList.filter(d => d.status === "pending").length > 0 && (
+            <div style={{ marginBottom: "24px" }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px",
+              }}>
+                <Sparkles size={16} color={COLORS.violet} />
+                <span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.violet }}>
+                  Proposés par l&apos;IA — à valider ({agentDevisList.filter(d => d.status === "pending").length})
+                </span>
+              </div>
+              <div style={{ display: "grid", gap: "10px" }}>
+                {agentDevisList.filter(d => d.status === "pending").map(devis => (
+                  <Card key={devis.id} style={{ border: `2px solid ${COLORS.violet}30`, background: `${COLORS.violet}04` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "16px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                          <span style={{ fontSize: "16px" }}>{SOURCE_ICONS[devis.source]}</span>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.dark }}>{devis.prospectName}</span>
+                          <Badge label={devis.source.toUpperCase()} variant="ai" />
+                        </div>
+                        <div style={{ fontSize: "13px", color: COLORS.dark, fontWeight: 600 }}>{devis.objet}</div>
+                        <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "4px" }}>
+                          Confiance : <span style={{ color: getConfidenceColor(devis.confidenceScore), fontWeight: 600 }}>{devis.confidenceScore}%</span> · {fmtDate(devis.createdAt)}
+                        </div>
+                        <div style={{
+                          fontSize: "12px", color: COLORS.muted, background: COLORS.background,
+                          padding: "8px 10px", borderRadius: "6px", marginTop: "8px",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          &ldquo;{devis.originalMessage}&rdquo;
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: "18px", fontWeight: 700, color: COLORS.orange, marginBottom: "8px" }}>
+                          {fmtMoney(devis.totalEstime)}
+                        </div>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <Button variant="primary" size="sm" onClick={() => importAgentDevis(devis.id)} loading={saving} icon={<Check size={14} />}>
+                            Valider
+                          </Button>
+                          <Button variant="danger" size="sm" onClick={() => rejectAgentDevis(devis.id)} icon={<X size={14} />}>
+                            Rejeter
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Search */}
           <div style={{ marginBottom: "20px", display: "flex", gap: "12px" }}>
@@ -1666,302 +1768,6 @@ export default function DevisFacturesPage() {
             >
               Convertir en facture
             </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── AGENT DEVIS VIEW ───────────────────────────────────────────────────
-  if (tab === "agent-devis") {
-    return (
-      <div style={{ background: COLORS.background, minHeight: "100vh", padding: "32px" }}>
-        <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-          {/* Header */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "32px",
-            }}
-          >
-            <div>
-              <h1 style={{ fontSize: "32px", fontWeight: 700, color: COLORS.dark }}>
-                <Sparkles
-                  size={32}
-                  style={{ display: "inline-block", marginRight: "12px", color: COLORS.violet }}
-                />
-                Devis Générés par l'IA
-              </h1>
-              <p style={{ fontSize: "14px", color: COLORS.muted, marginTop: "4px" }}>
-                Devis créés automatiquement à partir de messages clients
-              </p>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: "flex", gap: "16px", marginBottom: "32px" }}>
-            <StatCard
-              label="En attente"
-              value={agentDevisList.filter((d) => d.status === "pending").length}
-              icon="⏳"
-              variant="warning"
-            />
-            <StatCard
-              label="Validés"
-              value={agentDevisList.filter((d) => d.status === "validated").length}
-              icon="✓"
-              variant="success"
-            />
-            <StatCard
-              label="Rejetés"
-              value={agentDevisList.filter((d) => d.status === "rejected").length}
-              icon="✗"
-              variant="danger"
-            />
-            <StatCard
-              label="Confiance moyenne"
-              value={
-                agentDevisList.length > 0
-                  ? Math.round(
-                      agentDevisList.reduce((sum, d) => sum + d.confidenceScore, 0) /
-                        agentDevisList.length
-                    ) + "%"
-                  : "—"
-              }
-              icon="📊"
-              variant="info"
-            />
-          </div>
-
-          {/* List */}
-          {agentDevisList.length === 0 ? (
-            <Card
-              style={{
-                textAlign: "center",
-                padding: "60px 20px",
-                background: COLORS.surface,
-              }}
-            >
-              <Sparkles
-                size={48}
-                style={{ margin: "0 auto", opacity: 0.3, marginBottom: "16px" }}
-              />
-              <p style={{ color: COLORS.muted, marginBottom: "16px" }}>
-                Aucun devis généré par l'IA pour le moment
-              </p>
-            </Card>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {agentDevisList.map((devis) => (
-                <Card key={devis.id}>
-                  <div style={{ display: "grid", gap: "16px" }}>
-                    {/* Top row */}
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "start",
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "12px",
-                            marginBottom: "8px",
-                          }}
-                        >
-                          <span style={{ fontSize: "20px" }}>
-                            {SOURCE_ICONS[devis.source]}
-                          </span>
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              fontWeight: 700,
-                              color: COLORS.dark,
-                            }}
-                          >
-                            {devis.prospectName}
-                          </div>
-                          <Badge
-                            label={devis.source.toUpperCase()}
-                            variant="ai"
-                          />
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: COLORS.muted,
-                            lineHeight: "1.5",
-                            background: COLORS.background,
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            marginTop: "8px",
-                          }}
-                        >
-                          "{devis.originalMessage}"
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right", marginLeft: "20px" }}>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: COLORS.muted,
-                            marginBottom: "4px",
-                          }}
-                        >
-                          Estimation
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "18px",
-                            fontWeight: 700,
-                            color: COLORS.orange,
-                          }}
-                        >
-                          {fmtMoney(devis.totalEstime)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Confidence bar */}
-                    <div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        <div style={{ fontSize: "12px", color: COLORS.muted }}>
-                          Score de confiance
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            color: getConfidenceColor(devis.confidenceScore),
-                          }}
-                        >
-                          {devis.confidenceScore}%
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          height: "6px",
-                          background: COLORS.border,
-                          borderRadius: "3px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: "100%",
-                            width: `${devis.confidenceScore}%`,
-                            background: getConfidenceColor(devis.confidenceScore),
-                            transition: "width 0.3s ease",
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Details */}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr",
-                        gap: "12px",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: "11px", color: COLORS.muted }}>Objet</div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            color: COLORS.dark,
-                            marginTop: "4px",
-                          }}
-                        >
-                          {devis.objet}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "11px", color: COLORS.muted }}>Source</div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            color: COLORS.dark,
-                            marginTop: "4px",
-                            textTransform: "capitalize",
-                          }}
-                        >
-                          {devis.source === "whatsapp"
-                            ? "WhatsApp"
-                            : devis.source === "telegram"
-                              ? "Telegram"
-                              : "SMS"}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "11px", color: COLORS.muted }}>Créé le</div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            color: COLORS.dark,
-                            marginTop: "4px",
-                          }}
-                        >
-                          {fmtDate(devis.createdAt)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div style={{ display: "flex", gap: "12px" }}>
-                      {devis.status === "pending" && (
-                        <>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => importAgentDevis(devis.id)}
-                            loading={saving}
-                            icon={<Check size={16} />}
-                          >
-                            Valider et importer
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => rejectAgentDevis(devis.id)}
-                            icon={<X size={16} />}
-                          >
-                            Rejeter
-                          </Button>
-                        </>
-                      )}
-                      {devis.status === "validated" && (
-                        <Badge label="Importé" variant="success" icon="✓" />
-                      )}
-                      {devis.status === "rejected" && (
-                        <Badge label="Rejeté" variant="danger" icon="✗" />
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* Tabs at bottom */}
-          <div style={{ marginTop: "32px" }}>
-            <TabNav tabs={tabs} activeTab={tab} onChange={setTab} />
           </div>
         </div>
       </div>

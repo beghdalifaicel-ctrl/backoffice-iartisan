@@ -83,11 +83,6 @@ const TOOL_CATEGORIES: { id: string; label: string; emoji: string; desc: string;
   {
     id: "clients", label: "Gérer mes clients", emoji: "👥", desc: "Devis, factures, relances",
     tools: [
-      { taskType: "quote.generate", agentType: "ADMIN", label: "Créer un devis", desc: "Génère un devis professionnel", icon: FileEdit, fields: [
-        { key: "clientName", label: "Nom du client", placeholder: "Ex: Pierre Durand" },
-        { key: "description", label: "Description des travaux", placeholder: "Ex: Rénovation salle de bain" },
-        { key: "amount", label: "Montant HT (€)", placeholder: "1500", type: "number" },
-      ]},
       { taskType: "invoice.generate", agentType: "ADMIN", label: "Créer une facture", desc: "Facture à partir d'un devis validé", icon: FileText, fields: [
         { key: "clientName", label: "Nom du client", placeholder: "Ex: Pierre Durand" },
         { key: "description", label: "Prestation réalisée", placeholder: "Travaux effectués" },
