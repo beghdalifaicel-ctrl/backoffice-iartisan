@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireClient } from "@/lib/auth";
+import { sendDevisEmail } from "@/lib/email";
 
 function computeTotals(lots: any[], remisePercent: number) {
   let totalHT = 0;
@@ -95,6 +96,21 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         lots: { include: { lignes: true }, orderBy: { position: "asc" } },
       },
     });
+
+    // Envoyer email au client si le statut passe à ENVOYE
+    if (body.status === "ENVOYE" && existing.status !== "ENVOYE" && devis.customer?.email) {
+      const artisan = await prisma.client.findUnique({ where: { id: session.clientId! }, select: { company: true } });
+      const fmtDate = (d: Date) => new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d));
+      sendDevisEmail(devis.customer.email, {
+        clientName: devis.customer.name,
+        artisanCompany: artisan?.company || "Votre artisan",
+        devisNumber: devis.number,
+        objet: devis.objet,
+        totalTTC: devis.totalTTC.toFixed(2).replace(".", ","),
+        validUntil: devis.validUntil ? fmtDate(devis.validUntil) : undefined,
+        pdfUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://app.iartisan.io"}/api/client/devis/${devis.id}/pdf`,
+      }).catch(err => console.error("Email devis error:", err));
+    }
 
     return NextResponse.json(devis);
   } catch (e: any) {

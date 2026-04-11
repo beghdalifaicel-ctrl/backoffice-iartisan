@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireClient } from "@/lib/auth";
+import { sendFactureEmail } from "@/lib/email";
 
 // POST — convert devis to facture
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -69,6 +70,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Update devis status to ACCEPTE if not already
     if (devis.status === "BROUILLON" || devis.status === "ENVOYE") {
       await prisma.devis.update({ where: { id: devis.id }, data: { status: "ACCEPTE" } });
+    }
+
+    // Envoyer email facture au client final
+    if (facture.customer?.email) {
+      const artisan = await prisma.client.findUnique({ where: { id: clientId }, select: { company: true } });
+      const fmtDate = (d: Date) => new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d));
+      sendFactureEmail(facture.customer.email, {
+        clientName: facture.customer.name,
+        artisanCompany: artisan?.company || "Votre artisan",
+        factureNumber: facture.number,
+        totalTTC: facture.totalTTC.toFixed(2).replace(".", ","),
+        echeance: facture.echeance ? fmtDate(facture.echeance) : undefined,
+        pdfUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://app.iartisan.io"}/api/client/factures-btp/${facture.id}/pdf`,
+      }).catch(err => console.error("Email facture error:", err));
     }
 
     return NextResponse.json(facture);

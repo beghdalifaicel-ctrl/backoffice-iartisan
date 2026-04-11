@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import Stripe from "stripe";
-import { sendSubscriptionActiveEmail, sendTrialEndingEmail, sendAdminNotification } from "@/lib/email";
+import { sendSubscriptionActiveEmail, sendTrialEndingEmail, sendAdminNotification, sendPaymentReminderEmail } from "@/lib/email";
 
 // Désactiver le body parsing Next.js (Stripe a besoin du raw body)
 export const runtime = "nodejs";

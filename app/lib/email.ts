@@ -181,6 +181,142 @@ ${button("Mon espace client", `${APP_URL}/client`)}`;
 }
 
 // ============================================================
+// Email : Devis envoyé au client final (client de l'artisan)
+// ============================================================
+export async function sendDevisEmail(to: string, data: {
+  clientName: string;
+  artisanCompany: string;
+  devisNumber: string;
+  objet: string;
+  totalTTC: string;
+  validUntil?: string;
+  pdfUrl: string;
+}) {
+  const content = `
+<h2 style="margin:0 0 16px;color:#1e293b;font-size:20px">Nouveau devis</h2>
+<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px">
+Bonjour ${data.clientName},
+</p>
+<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px">
+<strong>${data.artisanCompany}</strong> vous a envoy&eacute; un devis pour les travaux suivants :
+</p>
+<table width="100%" style="background:#f1f5f9;border-radius:8px;margin:16px 0;border-collapse:collapse">
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">Devis N&deg;</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:14px;font-weight:700;border-bottom:1px solid #e2e8f0">${data.devisNumber}</td>
+</tr>
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">Objet</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:14px;border-bottom:1px solid #e2e8f0">${data.objet}</td>
+</tr>
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">Montant TTC</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:18px;font-weight:700;border-bottom:1px solid #e2e8f0">${data.totalTTC}&nbsp;&euro;</td>
+</tr>
+${data.validUntil ? `<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600">Valide jusqu'au</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:14px">${data.validUntil}</td>
+</tr>` : ""}
+</table>
+${button("Voir le devis", data.pdfUrl)}
+<p style="color:#94a3b8;font-size:13px;margin:0;text-align:center">
+Pour accepter ce devis, contactez directement ${data.artisanCompany}.
+</p>`;
+
+  return sendEmail(to, `Devis ${data.devisNumber} — ${data.artisanCompany}`, emailLayout("Devis", content));
+}
+
+// ============================================================
+// Email : Facture disponible (client de l'artisan)
+// ============================================================
+export async function sendFactureEmail(to: string, data: {
+  clientName: string;
+  artisanCompany: string;
+  factureNumber: string;
+  totalTTC: string;
+  echeance?: string;
+  pdfUrl: string;
+}) {
+  const content = `
+<h2 style="margin:0 0 16px;color:#1e293b;font-size:20px">Nouvelle facture</h2>
+<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px">
+Bonjour ${data.clientName},
+</p>
+<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px">
+<strong>${data.artisanCompany}</strong> vous a envoy&eacute; une facture :
+</p>
+<table width="100%" style="background:#f1f5f9;border-radius:8px;margin:16px 0;border-collapse:collapse">
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">Facture N&deg;</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:14px;font-weight:700;border-bottom:1px solid #e2e8f0">${data.factureNumber}</td>
+</tr>
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">Montant TTC</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:18px;font-weight:700;border-bottom:1px solid #e2e8f0">${data.totalTTC}&nbsp;&euro;</td>
+</tr>
+${data.echeance ? `<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600">&Eacute;ch&eacute;ance</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:14px;font-weight:600">${data.echeance}</td>
+</tr>` : ""}
+</table>
+${button("Voir la facture", data.pdfUrl)}
+<p style="color:#94a3b8;font-size:13px;margin:0;text-align:center">
+Merci de proc&eacute;der au r&egrave;glement dans les d&eacute;lais indiqu&eacute;s.
+</p>`;
+
+  return sendEmail(to, `Facture ${data.factureNumber} — ${data.artisanCompany}`, emailLayout("Facture", content));
+}
+
+// ============================================================
+// Email : Rappel de paiement (client de l'artisan)
+// ============================================================
+export async function sendPaymentReminderEmail(to: string, data: {
+  clientName: string;
+  artisanCompany: string;
+  factureNumber: string;
+  totalTTC: string;
+  echeance: string;
+  daysOverdue: number;
+  pdfUrl: string;
+  artisanPhone?: string;
+}) {
+  const urgencyColor = data.daysOverdue > 30 ? "#dc2626" : data.daysOverdue > 14 ? "#ea580c" : "#d97706";
+  const urgencyLabel = data.daysOverdue > 30 ? "Rappel urgent" : data.daysOverdue > 14 ? "Second rappel" : "Rappel de paiement";
+
+  const content = `
+<div style="background:${urgencyColor}10;border-left:4px solid ${urgencyColor};border-radius:0 8px 8px 0;padding:12px 16px;margin:0 0 20px">
+<p style="margin:0;color:${urgencyColor};font-size:14px;font-weight:700">${urgencyLabel} &mdash; ${data.daysOverdue} jour${data.daysOverdue > 1 ? "s" : ""} de retard</p>
+</div>
+<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px">
+Bonjour ${data.clientName},
+</p>
+<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px">
+Sauf erreur de notre part, nous n'avons pas encore re&ccedil;u le r&egrave;glement de la facture suivante :
+</p>
+<table width="100%" style="background:#f1f5f9;border-radius:8px;margin:16px 0;border-collapse:collapse">
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">Facture N&deg;</td>
+<td style="padding:12px 16px;color:#1e293b;font-size:14px;font-weight:700;border-bottom:1px solid #e2e8f0">${data.factureNumber}</td>
+</tr>
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">Montant d&ucirc;</td>
+<td style="padding:12px 16px;color:${urgencyColor};font-size:18px;font-weight:700;border-bottom:1px solid #e2e8f0">${data.totalTTC}&nbsp;&euro;</td>
+</tr>
+<tr>
+<td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:600">&Eacute;ch&eacute;ance d&eacute;pass&eacute;e</td>
+<td style="padding:12px 16px;color:${urgencyColor};font-size:14px;font-weight:600">${data.echeance}</td>
+</tr>
+</table>
+<p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px">
+Nous vous remercions de bien vouloir proc&eacute;der au r&egrave;glement dans les meilleurs d&eacute;lais. Si le paiement a d&eacute;j&agrave; &eacute;t&eacute; effectu&eacute;, merci de ne pas tenir compte de ce message.
+</p>
+${button("Voir la facture", data.pdfUrl)}
+${data.artisanPhone ? `<p style="color:#94a3b8;font-size:13px;margin:0;text-align:center">Une question ? Appelez le ${data.artisanPhone}</p>` : ""}`;
+
+  return sendEmail(to, `${urgencyLabel} — Facture ${data.factureNumber} — ${data.artisanCompany}`, emailLayout("Rappel", content));
+}
+
+// ============================================================
 // Core send function with error handling
 // ============================================================
 async function sendEmail(to: string, subject: string, html: string) {
