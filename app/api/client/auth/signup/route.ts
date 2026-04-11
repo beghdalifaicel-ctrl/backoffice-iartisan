@@ -37,7 +37,11 @@ export async function POST(req: NextRequest) {
       metadata: { company: company || "", metier: metier || "", ville: ville || "" },
     });
 
-    // Create client in DB (status TRIAL, will be activated by Stripe webhook on payment)
+    // Essai gratuit seulement sur Pro et Max, pas sur Essentiel
+    const hasTrial = planKey !== "ESSENTIEL";
+    const hasSetupFee = PLANS[planKey].setup > 0;
+
+    // Create client in DB
     const client = await prisma.client.create({
       data: {
         firstName,
@@ -48,8 +52,8 @@ export async function POST(req: NextRequest) {
         metier: metier || null,
         ville: ville || null,
         plan: planKey,
-        status: "TRIAL",
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 jours
+        status: hasTrial ? "TRIAL" : "ACTIVE",
+        trialEndsAt: hasTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null,
         passwordHash,
         stripeCustomerId: customer.id,
       },
@@ -57,13 +61,14 @@ export async function POST(req: NextRequest) {
 
     // Create Stripe Checkout session
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.iartisan.io";
-    const session = await stripe.checkout.sessions.create({
+
+    // Build line items: subscription + optional setup fee
+    const lineItems: any[] = [{ price: PLANS[planKey].priceId, quantity: 1 }];
+
+    const checkoutParams: any = {
       customer: customer.id,
       mode: "subscription",
-      line_items: [{ price: PLANS[planKey].priceId, quantity: 1 }],
-      subscription_data: {
-        trial_period_days: 14,
-      },
+      line_items: lineItems,
       success_url: `${appUrl}/api/client/auth/stripe-callback?session_id={CHECKOUT_SESSION_ID}&client_id=${client.id}`,
       cancel_url: `${appUrl}/client/signup?canceled=true`,
       metadata: {
@@ -71,7 +76,14 @@ export async function POST(req: NextRequest) {
         plan: planKey,
       },
       allow_promotion_codes: true,
-    });
+    };
+
+    // Ajouter l'essai gratuit seulement pour Pro et Max
+    if (hasTrial) {
+      checkoutParams.subscription_data = { trial_period_days: 14 };
+    }
+
+    const session = await stripe.checkout.sessions.create(checkoutParams);
 
     return NextResponse.json({
       success: true,

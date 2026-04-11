@@ -15,6 +15,8 @@ const PLANS = [
     key: "ESSENTIEL",
     name: "Essentiel",
     price: 49,
+    setup: 50,
+    trial: false,
     desc: "Votre secrétaire IA",
     reframe: "Le prix d'un plein de gasoil",
     result: "~10h/semaine de paperasse en moins",
@@ -29,6 +31,8 @@ const PLANS = [
     key: "CROISSANCE",
     name: "Pro",
     price: 99,
+    setup: 0,
+    trial: true,
     popular: true,
     desc: "Être trouvé par vos clients",
     reframe: "Moins qu'un encart dans les Pages Jaunes",
@@ -45,6 +49,8 @@ const PLANS = [
     key: "PILOTE_AUTO",
     name: "Max",
     price: 179,
+    setup: 0,
+    trial: true,
     desc: "On vous trouve de nouveaux clients",
     reframe: "Rentabilisé dès le 1er nouveau client",
     result: "5 à 15 nouveaux contacts par mois",
@@ -158,7 +164,7 @@ function SignupContent() {
                 Votre assistant IA,<br />prêt en 2 minutes
               </h1>
               <p style={{ color: C.muted, fontSize: 14, margin: 0 }}>
-                Choisissez votre formule · 14 jours gratuits
+                Choisissez votre formule
               </p>
             </div>
 
@@ -196,6 +202,18 @@ function SignupContent() {
                       </div>
                     </div>
 
+                    {/* Setup fee ou trial badge */}
+                    {plan.setup > 0 && (
+                      <div style={{ background: `${C.yellow}20`, borderRadius: 8, padding: "6px 12px", marginBottom: 10, fontSize: 12, color: C.dark, fontWeight: 600, display: "inline-block" }}>
+                        Frais de mise en service : {plan.setup}€ HT
+                      </div>
+                    )}
+                    {plan.trial && (
+                      <div style={{ background: `${C.green}12`, borderRadius: 8, padding: "6px 12px", marginBottom: 10, fontSize: 12, color: C.green, fontWeight: 700, display: "inline-block" }}>
+                        <Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} /> 14 jours d'essai gratuit
+                      </div>
+                    )}
+
                     {/* Features */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                       {plan.features.map((f, i) => (
@@ -219,7 +237,7 @@ function SignupContent() {
 
                     {/* CTA */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: C.accent, fontWeight: 700, fontSize: 14 }}>
-                      Essayer gratuitement <ArrowRight size={15} />
+                      {plan.trial ? "Essayer gratuitement" : "Commencer maintenant"} <ArrowRight size={15} />
                     </div>
                   </button>
                 );
@@ -229,8 +247,8 @@ function SignupContent() {
             {/* Réassurance */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {[
-                { icon: Clock, text: "14 jours d'essai gratuit" },
                 { icon: Shield, text: "Sans engagement · Annulable en 1 clic" },
+                { icon: Clock, text: "Essai gratuit sur les formules Pro et Max" },
                 { icon: Users, text: "Déjà utilisé par des artisans partout en France" },
               ].map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: C.muted }}>
@@ -265,9 +283,12 @@ function SignupContent() {
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>
                   Offre {selectedPlanData.name} — {selectedPlanData.price}€/mois
                 </div>
-                <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 2 }}>
-                  <Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                  14 jours gratuits inclus
+                <div style={{ fontSize: 12, color: selectedPlanData.trial ? C.green : C.muted, fontWeight: 600, marginTop: 2 }}>
+                  {selectedPlanData.trial ? (
+                    <><Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} />14 jours gratuits inclus</>
+                  ) : (
+                    <>Frais de mise en service : {selectedPlanData.setup}€ HT</>
+                  )}
                 </div>
               </div>
               <button
@@ -359,13 +380,16 @@ function SignupContent() {
                   }}
                 >
                   {loading ? <Loader2 size={18} /> : null}
-                  {loading ? "Redirection..." : "Démarrer mes 14 jours gratuits"}
+                  {loading ? "Redirection..." : selectedPlanData.trial ? "Démarrer mes 14 jours gratuits" : "Créer mon compte"}
                 </button>
 
                 <p style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 14, lineHeight: 1.6 }}>
                   En continuant, vous acceptez nos{" "}
                   <a href="/cgv" target="_blank" style={{ color: C.muted, textDecoration: "underline" }}>conditions d'utilisation</a>.<br />
-                  Aucun prélèvement pendant l'essai gratuit.
+                  {selectedPlanData.trial
+                    ? "Aucun prélèvement pendant l'essai gratuit."
+                    : `Mise en service ${selectedPlanData.setup}€ HT + premier mois ${selectedPlanData.price}€ HT.`
+                  }
                 </p>
               </form>
             </div>
