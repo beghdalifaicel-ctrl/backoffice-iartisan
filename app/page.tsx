@@ -666,8 +666,12 @@ export default function LandingPage() {
             {/* Légal */}
             <div>
               <div style={{ fontWeight: 700, fontSize: 13, color: "#fff", marginBottom: 12 }}>Légal</div>
-              {["CGV", "Mentions légales", "Politique de confidentialité"].map(l => (
-                <span key={l} style={{ display: "block", color: "rgba(255,255,255,0.5)", fontSize: 13, marginBottom: 8 }}>{l}</span>
+              {[
+                { label: "CGV", href: "/cgv" },
+                { label: "Mentions légales", href: "/mentions-legales" },
+                { label: "Confidentialité", href: "/confidentialite" },
+              ].map(l => (
+                <a key={l.label} href={l.href} style={{ display: "block", color: "rgba(255,255,255,0.5)", fontSize: 13, marginBottom: 8, textDecoration: "none" }}>{l.label}</a>
               ))}
             </div>
           </div>
