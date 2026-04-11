@@ -4,11 +4,7 @@ import { useState, useEffect } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Home, Users, TrendingUp, DollarSign, FileText, Activity, Settings, Bell, Star, ArrowUpRight, ArrowDownRight, Zap, UserPlus, CreditCard, AlertCircle, X as XIcon, Globe, Plus, Search, Eye, Edit, Trash2, Phone, Mail, Download, ChevronRight, RefreshCw, Send, CheckCircle, Clock, LogOut, Menu, Bot, AlertTriangle, Loader2 } from "lucide-react";
 
-// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
-const C = {
-  bg: "#f7f4ef", dark: "#1a1a14", accent: "#ff5c00", green: "#2d6a4f",
-  muted: "#7a7a6a", surface: "#fff", border: "#e5e0d8", yellow: "#f4d03f",
-};
+import { C } from "@/lib/design-tokens";
 
 type Stats = {
   clients: { total: number; active: number; trial: number; churned: number; pastDue: number };

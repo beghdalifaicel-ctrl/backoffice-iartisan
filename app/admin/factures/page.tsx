@@ -1,65 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CreditCard, ArrowLeft, ArrowUpRight, DollarSign, AlertTriangle, CheckCircle, Clock, ChevronLeft, ChevronRight } from "lucide-react";
-
-const C = {
-  bg: "#f7f4ef", dark: "#1a1a14", accent: "#ff5c00", green: "#2d6a4f",
-  muted: "#7a7a6a", surface: "#fff", border: "#e5e0d8", yellow: "#f4d03f",
-};
-
-const STATUS_MAP: Record<string, { label: string; bg: string; color: string; icon: any }> = {
-  PAID: { label: "Payée", bg: "rgba(45,106,79,.1)", color: C.green, icon: CheckCircle },
-  PENDING: { label: "En attente", bg: "rgba(244,208,63,.15)", color: "#b8860b", icon: Clock },
-  PAST_DUE: { label: "Impayée", bg: "rgba(239,68,68,.1)", color: "#ef4444", icon: AlertTriangle },
-  VOID: { label: "Annulée", bg: "rgba(122,122,106,.15)", color: C.muted, icon: CreditCard },
-};
-
-type Invoice = {
-  id: string;
-  amount: number;
-  status: string;
-  stripeInvoiceId?: string;
-  paidAt?: string;
-  createdAt: string;
-  client?: { firstName: string; lastName: string; company: string; email: string };
-};
+import { CreditCard, ArrowUpRight } from "lucide-react";
+import { C } from "@/lib/design-tokens";
+import AdminLayout from "@/components/admin/AdminLayout";
+import PageHeader from "@/components/admin/PageHeader";
+import KPICard from "@/components/admin/KPICard";
+import TableRow from "@/components/admin/TableRow";
 
 export default function AdminFacturesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/stats").then(r => r.ok ? r.json() : null),
-    ]).then(([s]) => {
-      setStats(s);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    fetch("/api/stats").then(r => r.ok ? r.json() : null)
+      .then(s => { setStats(s); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  const filtered = statusFilter ? invoices.filter(i => i.status === statusFilter) : invoices;
-
   return (
-    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", background: C.bg, minHeight: "100vh", color: C.dark, fontSize: 14, maxWidth: 600, margin: "0 auto" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <AdminLayout>
+      <PageHeader title="Factures" subtitle="Suivi facturation & paiements" />
 
-      {/* Header */}
-      <div style={{ padding: "16px 16px 0", display: "flex", alignItems: "center", gap: 12 }}>
-        <a href="/admin" style={{ width: 36, height: 36, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-          <ArrowLeft size={18} color={C.dark} />
-        </a>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" }}>Factures</div>
-          <div style={{ fontSize: 12, color: C.muted }}>Suivi facturation & paiements</div>
-        </div>
-      </div>
-
-      {/* Revenue KPIs */}
       {stats && (
         <div style={{ padding: "16px" }}>
+          {/* Revenue KPIs */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
               { label: "MRR", val: `${(stats.revenue?.mrr || 0).toLocaleString()}€`, color: C.accent },
@@ -67,10 +32,7 @@ export default function AdminFacturesPage() {
               { label: "ARR projeté", val: `${(stats.revenue?.arr || 0).toLocaleString()}€`, color: C.dark },
               { label: "Impayés", val: `${(stats.revenue?.unpaidAmount || 0).toLocaleString()}€ (${stats.revenue?.unpaidCount || 0})`, color: (stats.revenue?.unpaidCount || 0) > 0 ? "#ef4444" : C.green },
             ].map(k => (
-              <div key={k.label} style={{ background: C.surface, borderRadius: 14, padding: 14, border: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{k.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: k.color, marginTop: 4 }}>{k.val}</div>
-              </div>
+              <KPICard key={k.label} label={k.label} value={k.val} color={k.color} variant="full" />
             ))}
           </div>
 
@@ -82,11 +44,8 @@ export default function AdminFacturesPage() {
               { l: "Clients actifs", v: `${stats.clients?.active || 0}`, c: C.green },
               { l: "Clients en essai", v: `${stats.clients?.trial || 0}`, c: C.accent },
               { l: "Résiliés", v: `${stats.clients?.churned || 0}`, c: C.muted },
-            ].map((r, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: i < 3 ? `1px solid ${C.border}` : "none" }}>
-                <span style={{ fontSize: 13, color: C.muted }}>{r.l}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: r.c }}>{r.v}</span>
-              </div>
+            ].map((r, i, arr) => (
+              <TableRow key={i} label={r.l} value={r.v} color={r.c} isLast={i === arr.length - 1} />
             ))}
           </div>
 
@@ -136,6 +95,6 @@ export default function AdminFacturesPage() {
       {loading && (
         <div style={{ textAlign: "center", padding: 40, color: C.muted, fontSize: 13 }}>Chargement…</div>
       )}
-    </div>
+    </AdminLayout>
   );
 }

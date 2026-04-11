@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Users, Search, Phone, Mail, ArrowLeft, ChevronLeft, ChevronRight, Filter, ArrowUpRight, Download } from "lucide-react";
-
-const C = {
-  bg: "#f7f4ef", dark: "#1a1a14", accent: "#ff5c00", green: "#2d6a4f",
-  muted: "#7a7a6a", surface: "#fff", border: "#e5e0d8", yellow: "#f4d03f",
-};
+import { Users, Phone, Mail, ArrowUpRight } from "lucide-react";
+import { C } from "@/lib/design-tokens";
+import AdminLayout from "@/components/admin/AdminLayout";
+import PageHeader from "@/components/admin/PageHeader";
+import SearchInput from "@/components/admin/SearchInput";
+import FilterButton from "@/components/admin/FilterButton";
+import Card from "@/components/admin/Card";
+import Badge from "@/components/admin/Badge";
+import ActionButton from "@/components/admin/ActionButton";
+import EmptyState from "@/components/admin/EmptyState";
+import Pagination from "@/components/admin/Pagination";
 
 const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> = {
   ACTIVE: { label: "Actif", bg: "rgba(45,106,79,.1)", color: C.green },
@@ -54,62 +59,22 @@ export default function AdminClientsPage() {
   useEffect(() => { setPage(1); }, [search, statusFilter, planFilter]);
 
   return (
-    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", background: C.bg, minHeight: "100vh", color: C.dark, fontSize: 14, maxWidth: 600, margin: "0 auto" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <AdminLayout>
+      <PageHeader title="Clients" subtitle={`${total} client${total > 1 ? "s" : ""} au total`} />
 
-      {/* Header */}
-      <div style={{ padding: "16px 16px 0", display: "flex", alignItems: "center", gap: 12 }}>
-        <a href="/admin" style={{ width: 36, height: 36, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-          <ArrowLeft size={18} color={C.dark} />
-        </a>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" }}>Clients</div>
-          <div style={{ fontSize: 12, color: C.muted }}>{total} client{total > 1 ? "s" : ""} au total</div>
-        </div>
-      </div>
+      <SearchInput value={search} onChange={setSearch} placeholder="Rechercher par nom, entreprise, ville…" />
 
-      {/* Search */}
-      <div style={{ padding: "12px 16px" }}>
-        <div style={{ position: "relative" }}>
-          <Search size={16} color={C.muted} style={{ position: "absolute", left: 12, top: 12 }} />
-          <input
-            type="text"
-            placeholder="Rechercher par nom, entreprise, ville…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: "100%", padding: "10px 12px 10px 36px", borderRadius: 12, border: `1px solid ${C.border}`,
-              background: C.surface, fontSize: 14, outline: "none", boxSizing: "border-box",
-              fontFamily: "inherit",
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Filters */}
+      {/* Status filters */}
       <div style={{ padding: "0 16px 8px", display: "flex", gap: 8, overflowX: "auto" }}>
         {[{ val: "", label: "Tous" }, { val: "ACTIVE", label: "Actifs" }, { val: "TRIAL", label: "Essai" }, { val: "PAST_DUE", label: "Impayés" }, { val: "CHURNED", label: "Résiliés" }].map(f => (
-          <button key={f.val} onClick={() => setStatusFilter(f.val)} style={{
-            padding: "6px 14px", borderRadius: 20, border: `1px solid ${statusFilter === f.val ? C.accent : C.border}`,
-            background: statusFilter === f.val ? "rgba(255,92,0,.1)" : C.surface,
-            color: statusFilter === f.val ? C.accent : C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            whiteSpace: "nowrap", fontFamily: "inherit",
-          }}>
-            {f.label}
-          </button>
+          <FilterButton key={f.val} label={f.label} active={statusFilter === f.val} onClick={() => setStatusFilter(f.val)} />
         ))}
       </div>
 
+      {/* Plan filters */}
       <div style={{ padding: "0 16px 8px", display: "flex", gap: 8, overflowX: "auto" }}>
         {[{ val: "", label: "Tous plans" }, { val: "ESSENTIEL", label: "Essentiel" }, { val: "CROISSANCE", label: "Pro" }, { val: "PILOTE_AUTO", label: "Max" }].map(f => (
-          <button key={f.val} onClick={() => setPlanFilter(f.val)} style={{
-            padding: "6px 14px", borderRadius: 20, border: `1px solid ${planFilter === f.val ? C.green : C.border}`,
-            background: planFilter === f.val ? "rgba(45,106,79,.1)" : C.surface,
-            color: planFilter === f.val ? C.green : C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            whiteSpace: "nowrap", fontFamily: "inherit",
-          }}>
-            {f.label}
-          </button>
+          <FilterButton key={f.val} label={f.label} active={planFilter === f.val} activeColor={C.green} activeBg="rgba(45,106,79,.1)" onClick={() => setPlanFilter(f.val)} />
         ))}
       </div>
 
@@ -118,23 +83,13 @@ export default function AdminClientsPage() {
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: C.muted, fontSize: 13 }}>Chargement…</div>
         ) : clients.length === 0 ? (
-          <div style={{ background: C.surface, borderRadius: 16, padding: "32px 20px", border: `1px solid ${C.border}`, textAlign: "center" }}>
-            <Users size={32} color={C.muted} style={{ margin: "0 auto 12px", display: "block" }} />
-            <p style={{ fontSize: 14, fontWeight: 700 }}>Aucun client trouvé</p>
-            <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-              {search || statusFilter || planFilter ? "Essayez de modifier vos filtres" : "Dès qu'un lead sera converti, il apparaîtra ici"}
-            </p>
-          </div>
+          <EmptyState icon={Users} title="Aucun client trouvé" message={search || statusFilter || planFilter ? "Essayez de modifier vos filtres" : "Dès qu'un lead sera converti, il apparaîtra ici"} />
         ) : (
           clients.map((c: any) => {
             const s = STATUS_MAP[c.status] || STATUS_MAP.CHURNED;
             const isOpen = expanded === c.id;
             return (
-              <div key={c.id} onClick={() => setExpanded(isOpen ? null : c.id)} style={{
-                background: C.surface, borderRadius: 16, padding: 14, marginBottom: 10,
-                boxShadow: "0 4px 20px rgba(26,26,20,.06)", border: `1px solid ${isOpen ? C.accent : C.border}`,
-                cursor: "pointer", transition: "border-color .2s",
-              }}>
+              <Card key={c.id} active={isOpen} onClick={() => setExpanded(isOpen ? null : c.id)}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 42, height: 42, borderRadius: 12, background: "rgba(255,92,0,.1)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: C.accent, flexShrink: 0 }}>
                     {c.firstName?.[0]}{c.lastName?.[0]}
@@ -143,9 +98,7 @@ export default function AdminClientsPage() {
                     <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.firstName} {c.lastName}</div>
                     <div style={{ fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.company} · {c.ville}</div>
                   </div>
-                  <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color, whiteSpace: "nowrap" }}>
-                    {s.label}
-                  </span>
+                  <Badge {...s} />
                 </div>
 
                 {isOpen && (
@@ -158,24 +111,8 @@ export default function AdminClientsPage() {
                       {c.siret && <div style={{ gridColumn: "1/3" }}><span style={{ color: C.muted }}>SIRET :</span> <strong>{c.siret}</strong></div>}
                     </div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      {c.phone && (
-                        <a href={`tel:${c.phone}`} onClick={(e) => e.stopPropagation()} style={{
-                          flex: 1, padding: "10px 0", borderRadius: 10, background: "rgba(45,106,79,.1)",
-                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                          textDecoration: "none", color: C.green, fontWeight: 600, fontSize: 13,
-                        }}>
-                          <Phone size={14} /> {c.phone}
-                        </a>
-                      )}
-                      {c.email && (
-                        <a href={`mailto:${c.email}`} onClick={(e) => e.stopPropagation()} style={{
-                          flex: 1, padding: "10px 0", borderRadius: 10, background: "rgba(37,99,235,.1)",
-                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                          textDecoration: "none", color: "#2563eb", fontWeight: 600, fontSize: 13,
-                        }}>
-                          <Mail size={14} /> Email
-                        </a>
-                      )}
+                      {c.phone && <ActionButton href={`tel:${c.phone}`} icon={Phone} label={c.phone} color={C.green} bg="rgba(45,106,79,.1)" />}
+                      {c.email && <ActionButton href={`mailto:${c.email}`} icon={Mail} label="Email" color="#2563eb" bg="rgba(37,99,235,.1)" />}
                     </div>
                     {c.stripeCustomerId && (
                       <a href={`https://dashboard.stripe.com/customers/${c.stripeCustomerId}`} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{
@@ -188,32 +125,13 @@ export default function AdminClientsPage() {
                     )}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })
         )}
 
-        {/* Pagination */}
-        {pages > 1 && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 12 }}>
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{
-              width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: page === 1 ? "default" : "pointer",
-              opacity: page === 1 ? 0.4 : 1,
-            }}>
-              <ChevronLeft size={16} />
-            </button>
-            <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{page} / {pages}</span>
-            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} style={{
-              width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: page === pages ? "default" : "pointer",
-              opacity: page === pages ? 0.4 : 1,
-            }}>
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
+        <Pagination page={page} pages={pages} onPageChange={setPage} />
       </div>
-    </div>
+    </AdminLayout>
   );
 }

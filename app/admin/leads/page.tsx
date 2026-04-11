@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Zap, Search, Phone, Mail, ArrowLeft, ChevronLeft, ChevronRight, UserPlus, ArrowUpRight, Loader2 } from "lucide-react";
-
-const C = {
-  bg: "#f7f4ef", dark: "#1a1a14", accent: "#ff5c00", green: "#2d6a4f",
-  muted: "#7a7a6a", surface: "#fff", border: "#e5e0d8", yellow: "#f4d03f",
-};
+import { Zap, Phone, Mail, UserPlus, Loader2 } from "lucide-react";
+import { C } from "@/lib/design-tokens";
+import AdminLayout from "@/components/admin/AdminLayout";
+import PageHeader from "@/components/admin/PageHeader";
+import FilterButton from "@/components/admin/FilterButton";
+import Card from "@/components/admin/Card";
+import Badge from "@/components/admin/Badge";
+import KPICard from "@/components/admin/KPICard";
+import ActionButton from "@/components/admin/ActionButton";
+import EmptyState from "@/components/admin/EmptyState";
+import Pagination from "@/components/admin/Pagination";
 
 const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> = {
   NEW: { label: "Nouveau", bg: "rgba(255,92,0,.1)", color: C.accent },
@@ -52,48 +57,25 @@ export default function AdminLeadsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          firstName: lead.firstName,
-          lastName: lead.lastName,
-          email: lead.email,
-          phone: lead.phone,
-          company: lead.company || `${lead.firstName} ${lead.lastName}`,
-          metier: lead.metier,
-          ville: lead.ville,
-          plan: lead.plan || "ESSENTIEL",
-          leadId: lead.id,
+          firstName: lead.firstName, lastName: lead.lastName, email: lead.email,
+          phone: lead.phone, company: lead.company || `${lead.firstName} ${lead.lastName}`,
+          metier: lead.metier, ville: lead.ville, plan: lead.plan || "ESSENTIEL", leadId: lead.id,
         }),
       });
-      if (res.ok) {
-        fetchLeads(); // Refresh
-      } else {
-        alert("Erreur lors de la conversion");
-      }
-    } catch {
-      alert("Erreur réseau");
-    }
+      if (res.ok) fetchLeads();
+      else alert("Erreur lors de la conversion");
+    } catch { alert("Erreur réseau"); }
     setConverting(null);
   };
 
-  // KPI bar
   const statusCounts = leads.reduce((acc: any, l: any) => {
     acc[l.status] = (acc[l.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   return (
-    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", background: C.bg, minHeight: "100vh", color: C.dark, fontSize: 14, maxWidth: 600, margin: "0 auto" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-      {/* Header */}
-      <div style={{ padding: "16px 16px 0", display: "flex", alignItems: "center", gap: 12 }}>
-        <a href="/admin" style={{ width: 36, height: 36, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-          <ArrowLeft size={18} color={C.dark} />
-        </a>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" }}>Leads</div>
-          <div style={{ fontSize: 12, color: C.muted }}>{total} lead{total > 1 ? "s" : ""} au total</div>
-        </div>
-      </div>
+    <AdminLayout>
+      <PageHeader title="Leads" subtitle={`${total} lead${total > 1 ? "s" : ""} au total`} />
 
       {/* KPI mini */}
       {!loading && total > 0 && (
@@ -104,10 +86,7 @@ export default function AdminLeadsPage() {
             { label: "Démo", val: statusCounts.DEMO_BOOKED || 0, color: "#a855f7" },
             { label: "Convertis", val: statusCounts.CONVERTED || 0, color: C.green },
           ].map(k => (
-            <div key={k.label} style={{ background: C.surface, borderRadius: 12, padding: "8px 10px", border: `1px solid ${C.border}`, textAlign: "center" }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: k.color }}>{k.val}</div>
-              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>{k.label}</div>
-            </div>
+            <KPICard key={k.label} label={k.label} value={k.val} color={k.color} />
           ))}
         </div>
       )}
@@ -115,21 +94,10 @@ export default function AdminLeadsPage() {
       {/* Filters */}
       <div style={{ padding: "0 16px 8px", display: "flex", gap: 8, overflowX: "auto" }}>
         {[
-          { val: "", label: "Tous" },
-          { val: "NEW", label: "Nouveaux" },
-          { val: "CONTACTED", label: "Contactés" },
-          { val: "DEMO_BOOKED", label: "Démo" },
-          { val: "CONVERTED", label: "Convertis" },
-          { val: "LOST", label: "Perdus" },
+          { val: "", label: "Tous" }, { val: "NEW", label: "Nouveaux" }, { val: "CONTACTED", label: "Contactés" },
+          { val: "DEMO_BOOKED", label: "Démo" }, { val: "CONVERTED", label: "Convertis" }, { val: "LOST", label: "Perdus" },
         ].map(f => (
-          <button key={f.val} onClick={() => setStatusFilter(f.val)} style={{
-            padding: "6px 14px", borderRadius: 20, border: `1px solid ${statusFilter === f.val ? C.accent : C.border}`,
-            background: statusFilter === f.val ? "rgba(255,92,0,.1)" : C.surface,
-            color: statusFilter === f.val ? C.accent : C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            whiteSpace: "nowrap", fontFamily: "inherit",
-          }}>
-            {f.label}
-          </button>
+          <FilterButton key={f.val} label={f.label} active={statusFilter === f.val} onClick={() => setStatusFilter(f.val)} />
         ))}
       </div>
 
@@ -138,23 +106,13 @@ export default function AdminLeadsPage() {
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: C.muted, fontSize: 13 }}>Chargement…</div>
         ) : leads.length === 0 ? (
-          <div style={{ background: C.surface, borderRadius: 16, padding: "32px 20px", border: `1px solid ${C.border}`, textAlign: "center" }}>
-            <Zap size={32} color={C.muted} style={{ margin: "0 auto 12px", display: "block" }} />
-            <p style={{ fontSize: 14, fontWeight: 700 }}>Aucun lead trouvé</p>
-            <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-              {statusFilter ? "Essayez un autre filtre" : "Les leads arrivent via le formulaire iartisan.io"}
-            </p>
-          </div>
+          <EmptyState icon={Zap} title="Aucun lead trouvé" message={statusFilter ? "Essayez un autre filtre" : "Les leads arrivent via le formulaire iartisan.io"} />
         ) : (
           leads.map((l: any) => {
             const s = STATUS_MAP[l.status] || STATUS_MAP.LOST;
             const isOpen = expanded === l.id;
             return (
-              <div key={l.id} onClick={() => setExpanded(isOpen ? null : l.id)} style={{
-                background: C.surface, borderRadius: 16, padding: 14, marginBottom: 10,
-                boxShadow: "0 4px 20px rgba(26,26,20,.06)", border: `1px solid ${isOpen ? C.accent : C.border}`,
-                cursor: "pointer", transition: "border-color .2s",
-              }}>
+              <Card key={l.id} active={isOpen} onClick={() => setExpanded(isOpen ? null : l.id)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -164,9 +122,7 @@ export default function AdminLeadsPage() {
                       {l.company || "—"} · {l.metier} · {l.ville}
                     </div>
                   </div>
-                  <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color, whiteSpace: "nowrap", marginLeft: 8 }}>
-                    {s.label}
-                  </span>
+                  <Badge {...s} style={{ marginLeft: 8 }} />
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
                   <span style={{ fontSize: 11, color: C.muted }}>
@@ -184,24 +140,10 @@ export default function AdminLeadsPage() {
                       <div><span style={{ color: C.muted }}>Statut :</span> <strong>{s.label}</strong></div>
                     </div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      {l.phone && (
-                        <a href={`tel:${l.phone}`} onClick={(e) => e.stopPropagation()} style={{
-                          flex: 1, padding: "10px 0", borderRadius: 10, background: "rgba(45,106,79,.1)",
-                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                          textDecoration: "none", color: C.green, fontWeight: 600, fontSize: 13,
-                        }}>
-                          <Phone size={14} /> Appeler
-                        </a>
-                      )}
-                      <a href={`mailto:${l.email}`} onClick={(e) => e.stopPropagation()} style={{
-                        flex: 1, padding: "10px 0", borderRadius: 10, background: "rgba(37,99,235,.1)",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        textDecoration: "none", color: "#2563eb", fontWeight: 600, fontSize: 13,
-                      }}>
-                        <Mail size={14} /> Email
-                      </a>
+                      {l.phone && <ActionButton href={`tel:${l.phone}`} icon={Phone} label="Appeler" color={C.green} bg="rgba(45,106,79,.1)" />}
+                      <ActionButton href={`mailto:${l.email}`} icon={Mail} label="Email" color="#2563eb" bg="rgba(37,99,235,.1)" />
                     </div>
-                    {l.status === "NEW" || l.status === "CONTACTED" || l.status === "DEMO_BOOKED" ? (
+                    {(l.status === "NEW" || l.status === "CONTACTED" || l.status === "DEMO_BOOKED") && (
                       <button onClick={(e) => { e.stopPropagation(); convertLead(l); }} disabled={converting === l.id} style={{
                         width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 10, border: "none",
                         background: C.accent, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
@@ -210,37 +152,18 @@ export default function AdminLeadsPage() {
                       }}>
                         {converting === l.id ? <><Loader2 size={14} style={{ animation: "spin .8s linear infinite" }} /> Conversion…</> : <><UserPlus size={14} /> Convertir en client</>}
                       </button>
-                    ) : null}
+                    )}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })
         )}
 
-        {/* Pagination */}
-        {pages > 1 && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 12 }}>
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{
-              width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: page === 1 ? "default" : "pointer",
-              opacity: page === 1 ? 0.4 : 1,
-            }}>
-              <ChevronLeft size={16} />
-            </button>
-            <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{page} / {pages}</span>
-            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} style={{
-              width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: page === pages ? "default" : "pointer",
-              opacity: page === pages ? 0.4 : 1,
-            }}>
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
+        <Pagination page={page} pages={pages} onPageChange={setPage} />
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
+    </AdminLayout>
   );
 }

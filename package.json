@@ -10,7 +10,9 @@
     "db:studio": "npx prisma studio",
     "db:seed": "npx ts-node prisma/seed.ts",
     "stripe:listen": "stripe listen --forward-to localhost:3000/api/webhooks/stripe",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
@@ -29,10 +31,16 @@
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.3.0",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0",
     "prisma": "^5.14.0",
+    "ts-jest": "^29.4.9",
     "typescript": "^5.4.0"
   }
 }
