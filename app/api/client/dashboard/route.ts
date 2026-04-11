@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireClient } from "@/lib/auth";
+import { stripe } from "@/lib/stripe";
 
 export async function GET() {
   try {
@@ -11,7 +12,9 @@ export async function GET() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    const [client, leadsThisMonth, leadsLastMonth, leadsTotal, leadsByStatus, invoices] =
+    // Leads par mois (6 derniers mois) pour le graphique
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const [client, leadsThisMonth, leadsLastMonth, leadsTotal, leadsByStatus, invoices, leadsMonthly] =
       await Promise.all([
         prisma.client.findUnique({
           where: { id: clientId },
@@ -30,6 +33,9 @@ export async function GET() {
             googleReviewCount: true,
             siteUrl: true,
             trialEndsAt: true,
+            stripeCustomerId: true,
+            stripeSubscriptionId: true,
+            createdAt: true,
           },
         }),
         prisma.lead.count({
@@ -52,6 +58,11 @@ export async function GET() {
           orderBy: { createdAt: "desc" },
           take: 5,
         }),
+        // Leads regroupés par mois (6 derniers mois)
+        prisma.lead.findMany({
+          where: { clientId, createdAt: { gte: sixMonthsAgo } },
+          select: { createdAt: true, status: true },
+        }),
       ]);
 
     if (!client) {
@@ -68,8 +79,64 @@ export async function GET() {
         ? Math.round(((statusCounts.WON || 0) / leadsTotal) * 100)
         : 0;
 
+    // ─── Graphique leads par mois ───────────────────────────────────────
+    const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+    const leadsChart: { month: string; leads: number; won: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthLeads = leadsMonthly.filter((l) => {
+        const ld = new Date(l.createdAt);
+        return ld.getFullYear() === d.getFullYear() && ld.getMonth() === d.getMonth();
+      });
+      leadsChart.push({
+        month: monthNames[d.getMonth()],
+        leads: monthLeads.length,
+        won: monthLeads.filter((l) => l.status === "WON").length,
+      });
+    }
+
+    // ─── Données Stripe enrichies ───────────────────────────────────────
+    let subscription: any = null;
+    if (client.stripeSubscriptionId) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(client.stripeSubscriptionId);
+        subscription = {
+          status: sub.status,
+          currentPeriodStart: new Date(sub.current_period_start * 1000).toISOString(),
+          currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString(),
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
+          trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+        };
+      } catch (e) {
+        // Stripe non dispo, pas grave
+      }
+    }
+
+    // ─── Prochaine facture Stripe ───────────────────────────────────────
+    let upcomingInvoice: any = null;
+    if (client.stripeCustomerId) {
+      try {
+        const upcoming = await stripe.invoices.retrieveUpcoming({
+          customer: client.stripeCustomerId,
+        });
+        upcomingInvoice = {
+          amount: upcoming.amount_due,
+          date: upcoming.next_payment_attempt
+            ? new Date(upcoming.next_payment_attempt * 1000).toISOString()
+            : null,
+        };
+      } catch (e) {
+        // Pas de prochaine facture (trial, etc.)
+      }
+    }
+
     return NextResponse.json({
-      client,
+      client: {
+        ...client,
+        stripeCustomerId: undefined,
+        stripeSubscriptionId: undefined,
+      },
       leads: {
         thisMonth: leadsThisMonth,
         lastMonth: leadsLastMonth,
@@ -77,6 +144,9 @@ export async function GET() {
         byStatus: statusCounts,
         conversionRate,
       },
+      leadsChart,
+      subscription,
+      upcomingInvoice,
       invoices,
     });
   } catch (error: any) {

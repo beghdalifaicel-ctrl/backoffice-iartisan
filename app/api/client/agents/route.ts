@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireClient } from "@/lib/auth";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireClient();
     const clientId = session.clientId!;
 
-    // Récupérer les leads récents (proxy pour l'activité des agents)
+    // ─── Prisma: leads, sources, client ────────────────────────────────
     const [recentLeads, leadsBySource, totalLeads, client] = await Promise.all([
       prisma.lead.findMany({
         where: { clientId },
@@ -46,22 +52,103 @@ export async function GET(req: NextRequest) {
       sourceCounts[s.source] = s._count;
     });
 
-    // Déterminer les agents actifs selon le plan
-    const agentsByPlan: Record<string, string[]> = {
-      ESSENTIEL: ["Agent Leads"],
-      CROISSANCE: ["Agent Leads", "Agent Google Ads", "Agent Avis"],
-      PILOTE_AUTO: ["Agent Leads", "Agent Google Ads", "Agent Avis", "Agent WhatsApp", "Agent Site Vitrine"],
+    // ─── Supabase: agent tasks & logs ──────────────────────────────────
+    let agentTaskStats = { total: 0, completed: 0, failed: 0, pending: 0 };
+    let agentUsage = { tokensUsed: 0, totalCost: 0, tasksThisMonth: 0 };
+    let recentTasks: any[] = [];
+
+    try {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      // Tasks stats globales
+      const { data: tasks } = await supabase
+        .from("agent_tasks")
+        .select("id, status, agent_type, task_type, created_at, completed_at")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (tasks && tasks.length > 0) {
+        agentTaskStats.total = tasks.length;
+        agentTaskStats.completed = tasks.filter((t: any) => t.status === "COMPLETED").length;
+        agentTaskStats.failed = tasks.filter((t: any) => t.status === "FAILED").length;
+        agentTaskStats.pending = tasks.filter((t: any) => t.status === "PENDING" || t.status === "PROCESSING").length;
+
+        // 10 dernières tâches pour l'activité
+        recentTasks = tasks.slice(0, 10).map((t: any) => ({
+          id: t.id,
+          agentType: t.agent_type,
+          taskType: t.task_type,
+          status: t.status,
+          createdAt: t.created_at,
+          completedAt: t.completed_at,
+        }));
+      }
+
+      // Logs d'usage ce mois
+      const { data: logs } = await supabase
+        .from("agent_logs")
+        .select("tokens_used, cost_cents")
+        .eq("client_id", clientId)
+        .gte("created_at", startOfMonth);
+
+      if (logs && logs.length > 0) {
+        agentUsage.tasksThisMonth = logs.length;
+        agentUsage.tokensUsed = logs.reduce((sum: number, l: any) => sum + (l.tokens_used || 0), 0);
+        agentUsage.totalCost = logs.reduce((sum: number, l: any) => sum + (l.cost_cents || 0), 0);
+      }
+
+      // Quota
+      const { data: quota } = await supabase
+        .from("agent_quotas")
+        .select("tasks_used, tasks_limit, tokens_used, tokens_limit")
+        .eq("client_id", clientId)
+        .order("period_start", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (quota) {
+        agentUsage = {
+          ...agentUsage,
+          ...quota,
+        };
+      }
+    } catch (e) {
+      // Tables Supabase pas encore peuplées, pas grave
+    }
+
+    // ─── Agents actifs selon le plan ───────────────────────────────────
+    const agentsByPlan: Record<string, { name: string; type: string; desc: string }[]> = {
+      ESSENTIEL: [
+        { name: "Agent Leads", type: "COMMERCIAL", desc: "Gère vos prospects et relances" },
+      ],
+      CROISSANCE: [
+        { name: "Agent Leads", type: "COMMERCIAL", desc: "Gère vos prospects et relances" },
+        { name: "Agent Google Ads", type: "MARKETING", desc: "Optimise vos campagnes publicitaires" },
+        { name: "Agent Avis", type: "MARKETING", desc: "Répond aux avis clients" },
+      ],
+      PILOTE_AUTO: [
+        { name: "Agent Leads", type: "COMMERCIAL", desc: "Gère vos prospects et relances" },
+        { name: "Agent Google Ads", type: "MARKETING", desc: "Optimise vos campagnes publicitaires" },
+        { name: "Agent Avis", type: "MARKETING", desc: "Répond aux avis clients" },
+        { name: "Agent WhatsApp", type: "COMMERCIAL", desc: "Répond aux messages WhatsApp" },
+        { name: "Agent Site Vitrine", type: "MARKETING", desc: "Met à jour votre site web" },
+      ],
     };
 
     const plan = client?.plan || "ESSENTIEL";
     const activeAgents = agentsByPlan[plan] || agentsByPlan.ESSENTIEL;
 
     return NextResponse.json({
-      agents: activeAgents.map((name) => ({
-        name,
+      agents: activeAgents.map((a) => ({
+        ...a,
         active: true,
       })),
       activity: recentLeads,
+      recentTasks,
+      agentTaskStats,
+      agentUsage,
       stats: {
         totalLeads,
         bySource: sourceCounts,
