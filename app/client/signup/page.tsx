@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ArrowRight, Loader2 } from "lucide-react";
 
@@ -54,6 +54,14 @@ const PLANS = [
 ];
 
 export default function ClientSignupPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#f7f4ef", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: "#7a7a6a", fontSize: 15 }}>Chargement...</div></div>}>
+      <SignupContent />
+    </Suspense>
+  );
+}
+
+function SignupContent() {
   const router = useRouter();
   const params = useSearchParams();
   const canceled = params.get("canceled");
