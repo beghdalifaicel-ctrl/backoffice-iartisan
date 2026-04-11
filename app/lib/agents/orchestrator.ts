@@ -124,9 +124,48 @@ export class AgentOrchestrator {
     return { taskId: task.id };
   }
 
+  // Build agent context from DB
+  private async buildContext(task: any): Promise<AgentContext> {
+    const { data: client } = await supabase
+      .from('clients')
+      .select('plan')
+      .eq('id', task.client_id)
+      .single();
+
+    const { data: config } = await supabase
+      .from('agent_configs')
+      .select('*')
+      .eq('client_id', task.client_id)
+      .eq('agent_type', task.agent_type)
+      .single();
+
+    const { data: integrations } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('client_id', task.client_id)
+      .eq('status', 'ACTIVE');
+
+    return {
+      clientId: task.client_id,
+      agentType: task.agent_type as AgentType,
+      plan: client?.plan as PlanType,
+      integrations: Object.fromEntries((integrations || []).map((i: any) => [i.type, i])),
+      config: config || {
+        id: '',
+        clientId: task.client_id,
+        agentType: task.agent_type,
+        enabled: true,
+        settings: {},
+      },
+    };
+  }
+
   // Process a task (called by worker)
+  // Strategy: Direct tool execution when possible, LLM-assisted when needed
   async processTask(taskId: string): Promise<void> {
-    // 1. Claim the task
+    const startTime = Date.now();
+
+    // 1. Claim the task (atomic — prevents double processing)
     const { data: task, error } = await supabase
       .from('agent_tasks')
       .update({ status: 'PROCESSING', started_at: new Date().toISOString() })
@@ -139,85 +178,68 @@ export class AgentOrchestrator {
 
     try {
       // 2. Build context
-      const { data: client } = await supabase
-        .from('clients')
-        .select('plan')
-        .eq('id', task.client_id)
-        .single();
+      const context = await this.buildContext(task);
 
-      const { data: config } = await supabase
-        .from('agent_configs')
-        .select('*')
-        .eq('client_id', task.client_id)
-        .eq('agent_type', task.agent_type)
-        .single();
-
-      const { data: integrations } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('client_id', task.client_id)
-        .eq('status', 'ACTIVE');
-
-      const context: AgentContext = {
-        clientId: task.client_id,
-        agentType: task.agent_type as AgentType,
-        plan: client?.plan as PlanType,
-        integrations: Object.fromEntries((integrations || []).map(i => [i.type, i])),
-        config: config || {
-          id: '',
-          clientId: task.client_id,
-          agentType: task.agent_type,
-          enabled: true,
-          settings: {},
-        },
-      };
-
-      // 3. Get tools for this task
+      // 3. Get tools for this task type
       const tools = getAgentTools(task.agent_type as AgentType, task.task_type);
 
-      // 4. Build system prompt
-      const systemPrompt = this.buildSystemPrompt(context, task.task_type);
+      let result: any;
+      let tokensUsed = 0;
+      let modelUsed = 'direct';
 
-      // 5. Call LLM
-      const llmResponse = await callLLM({
-        taskType: task.task_type,
-        systemPrompt,
-        userPrompt: JSON.stringify(task.payload),
-        tools: tools.map(t => ({
-          type: 'function',
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters,
-          },
-        })),
-        responseFormat: 'text',
-      });
+      if (tools.length > 0) {
+        // ─── STRATEGY A: Direct tool execution ───────────────────────
+        // The user already selected the tool and provided the payload.
+        // Execute the first matching tool directly — faster, cheaper, more reliable.
+        const tool = tools[0];
 
-      // 6. Update task as completed
+        try {
+          result = await tool.execute(task.payload || {}, context);
+        } catch (toolErr: any) {
+          // If direct execution fails, fall back to LLM-assisted mode
+          console.warn(`[Agent] Direct tool exec failed for ${task.task_type}, falling back to LLM:`, toolErr.message);
+          const llmResult = await this.processWithLLM(task, tools, context);
+          result = llmResult.result;
+          tokensUsed = llmResult.tokensUsed;
+          modelUsed = llmResult.model;
+        }
+      } else {
+        // ─── STRATEGY B: LLM-only (no registered tool) ──────────────
+        const llmResult = await this.processWithLLM(task, tools, context);
+        result = llmResult.result;
+        tokensUsed = llmResult.tokensUsed;
+        modelUsed = llmResult.model;
+      }
+
+      const durationMs = Date.now() - startTime;
+
+      // 4. Update task as completed
       await supabase
         .from('agent_tasks')
         .update({
           status: 'COMPLETED',
-          result: { content: llmResponse.content, tokensUsed: llmResponse.tokensUsed },
+          result: typeof result === 'string' ? { content: result } : result,
           completed_at: new Date().toISOString(),
         })
         .eq('id', taskId);
 
-      // 7. Log execution
+      // 5. Log execution
+      const costCents = tokensUsed > 0 ? estimateCostCents(tokensUsed, task.task_type) : 0;
       await this.logExecution({
         clientId: task.client_id,
         agentType: task.agent_type as AgentType,
         taskId,
         action: task.task_type,
-        tokensUsed: llmResponse.tokensUsed.total,
-        modelUsed: llmResponse.model,
-        durationMs: llmResponse.durationMs,
-        costCents: estimateCostCents(llmResponse.tokensUsed.total, task.task_type),
+        tokensUsed,
+        modelUsed,
+        durationMs,
+        costCents,
       });
 
-      // 8. Update quotas
-      await this.incrementQuota(task.client_id, llmResponse.tokensUsed.total);
+      // 6. Update quotas
+      if (tokensUsed > 0) {
+        await this.incrementQuota(task.client_id, tokensUsed);
+      }
     } catch (err: any) {
       // Handle failure with retry
       const newRetryCount = (task.retry_count || 0) + 1;
@@ -230,7 +252,7 @@ export class AgentOrchestrator {
           error: err.message,
           retry_count: newRetryCount,
           scheduled_for: shouldRetry
-            ? new Date(Date.now() + Math.pow(2, newRetryCount) * 60000).toISOString() // exponential backoff
+            ? new Date(Date.now() + Math.pow(2, newRetryCount) * 60000).toISOString()
             : undefined,
         })
         .eq('id', taskId);
@@ -242,11 +264,84 @@ export class AgentOrchestrator {
         action: `${task.task_type}.error`,
         tokensUsed: 0,
         modelUsed: '',
-        durationMs: 0,
+        durationMs: Date.now() - startTime,
         costCents: 0,
-        metadata: { error: err.message },
+        metadata: { error: err.message, retryCount: newRetryCount },
       });
     }
+  }
+
+  // LLM-assisted processing with tool execution loop
+  private async processWithLLM(
+    task: any,
+    tools: any[],
+    context: AgentContext
+  ): Promise<{ result: any; tokensUsed: number; model: string }> {
+    const systemPrompt = this.buildSystemPrompt(context, task.task_type);
+    let totalTokens = 0;
+    let model = '';
+
+    const toolDefs = tools.map(t => ({
+      type: 'function' as const,
+      function: { name: t.name, description: t.description, parameters: t.parameters },
+    }));
+
+    // Initial LLM call
+    let llmResponse = await callLLM({
+      taskType: task.task_type,
+      systemPrompt,
+      userPrompt: JSON.stringify(task.payload),
+      tools: toolDefs.length > 0 ? toolDefs : undefined,
+      responseFormat: 'text',
+    });
+
+    totalTokens += llmResponse.tokensUsed.total;
+    model = llmResponse.model;
+
+    // Tool execution loop (max 5 rounds to prevent infinite loops)
+    let rounds = 0;
+    while (llmResponse.toolCalls && llmResponse.toolCalls.length > 0 && rounds < 5) {
+      rounds++;
+      const toolResults: any[] = [];
+
+      for (const tc of llmResponse.toolCalls) {
+        const tool = tools.find(t => t.name === tc.function.name);
+        if (!tool) {
+          toolResults.push({ id: tc.id, error: `Tool ${tc.function.name} not found` });
+          continue;
+        }
+
+        try {
+          const params = JSON.parse(tc.function.arguments);
+          const execResult = await tool.execute(params, context);
+          toolResults.push({ id: tc.id, result: JSON.stringify(execResult).slice(0, 4000) });
+        } catch (execErr: any) {
+          toolResults.push({ id: tc.id, error: execErr.message });
+        }
+      }
+
+      // Send tool results back to LLM for final synthesis
+      const toolResultsPrompt = toolResults.map(r =>
+        r.error
+          ? `Tool ${r.id}: ERROR — ${r.error}`
+          : `Tool ${r.id}: ${r.result}`
+      ).join('\n\n');
+
+      llmResponse = await callLLM({
+        taskType: task.task_type,
+        systemPrompt,
+        userPrompt: `Résultats des outils exécutés:\n\n${toolResultsPrompt}\n\nRésume le résultat pour le client.`,
+        responseFormat: 'text',
+      });
+
+      totalTokens += llmResponse.tokensUsed.total;
+    }
+
+    return {
+      result: { content: llmResponse.content, toolsExecuted: rounds > 0 },
+      tokensUsed: totalTokens,
+      model,
+    };
   }
 
   private buildSystemPrompt(context: AgentContext, taskType: string): string {

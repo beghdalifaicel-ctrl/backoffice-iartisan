@@ -1,4 +1,4 @@
-import { LLMResponse } from './types';
+import { LLMResponse, ToolCall } from './types';
 
 // LLM Provider abstraction — Mistral primary for cost control
 // Mistral Small: ~0.1€/1M input, ~0.3€/1M output (classification, extraction)
@@ -109,8 +109,15 @@ export async function callLLM(options: LLMCallOptions): Promise<LLMResponse> {
     total: data.usage?.total_tokens || 0,
   };
 
+  const message = data.choices[0]?.message;
+  const toolCalls: ToolCall[] | undefined = message?.tool_calls?.map((tc: any) => ({
+    id: tc.id,
+    function: { name: tc.function.name, arguments: tc.function.arguments },
+  }));
+
   return {
-    content: data.choices[0]?.message?.content || '',
+    content: message?.content || '',
+    toolCalls: toolCalls?.length ? toolCalls : undefined,
     tokensUsed,
     model: modelConfig.model,
     durationMs,

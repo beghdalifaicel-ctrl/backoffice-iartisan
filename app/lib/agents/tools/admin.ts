@@ -435,6 +435,106 @@ const followUpClient: Tool = {
   },
 };
 
+// ── Weekly Report Tool ─────────────────────
+const weeklyReport: Tool = {
+  name: 'generate_weekly_report',
+  description: 'Génère un rapport hebdomadaire d\'activité pour l\'artisan',
+  parameters: {
+    type: 'object',
+    properties: {
+      weekStart: { type: 'string', description: 'Date de début de semaine (YYYY-MM-DD)' },
+    },
+  },
+  execute: async (params, context) => {
+    const now = new Date();
+    const weekStart = params.weekStart
+      ? new Date(params.weekStart)
+      : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Fetch data for the week
+    const [tasksRes, logsRes] = await Promise.all([
+      supabase
+        .from('agent_tasks')
+        .select('id, agent_type, task_type, status, created_at, completed_at')
+        .eq('client_id', context.clientId)
+        .gte('created_at', weekStart.toISOString())
+        .lte('created_at', weekEnd.toISOString()),
+      supabase
+        .from('agent_logs')
+        .select('action, tokens_used, cost_cents, duration_ms')
+        .eq('client_id', context.clientId)
+        .gte('created_at', weekStart.toISOString())
+        .lte('created_at', weekEnd.toISOString()),
+    ]);
+
+    const tasks = tasksRes.data || [];
+    const logs = logsRes.data || [];
+
+    const completed = tasks.filter((t: any) => t.status === 'COMPLETED').length;
+    const failed = tasks.filter((t: any) => t.status === 'FAILED').length;
+    const totalTokens = logs.reduce((s: number, l: any) => s + (l.tokens_used || 0), 0);
+    const totalCost = logs.reduce((s: number, l: any) => s + (l.cost_cents || 0), 0);
+
+    // Group tasks by type
+    const byType: Record<string, number> = {};
+    tasks.forEach((t: any) => { byType[t.task_type] = (byType[t.task_type] || 0) + 1; });
+
+    const taskRows = Object.entries(byType)
+      .map(([type, count]) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e0d8">${type.replace(/\\./g, ' → ')}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e0d8;text-align:center;font-weight:700">${count}</td></tr>`)
+      .join('');
+
+    const fmtDate = (d: Date) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
+    const html = `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+        <h2 style="color:#1a1a14;margin-bottom:4px">📊 Rapport hebdomadaire</h2>
+        <p style="color:#7a7a6a;font-size:13px;margin-top:0">${fmtDate(weekStart)} — ${fmtDate(weekEnd)}</p>
+        <div style="display:flex;gap:12px;margin:16px 0">
+          <div style="flex:1;background:#fff;border:1px solid #e5e0d8;border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:24px;font-weight:800">${tasks.length}</div>
+            <div style="font-size:11px;color:#7a7a6a">Tâches total</div>
+          </div>
+          <div style="flex:1;background:#fff;border:1px solid #e5e0d8;border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:#2d6a4f">${completed}</div>
+            <div style="font-size:11px;color:#7a7a6a">Terminées</div>
+          </div>
+          <div style="flex:1;background:#fff;border:1px solid #e5e0d8;border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:#dc2626">${failed}</div>
+            <div style="font-size:11px;color:#7a7a6a">Échouées</div>
+          </div>
+        </div>
+        ${taskRows ? `<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e0d8;border-radius:10px;overflow:hidden;margin:16px 0">
+          <tr style="background:#f7f4ef"><th style="padding:8px 12px;text-align:left;font-size:12px">Type de tâche</th><th style="padding:8px 12px;text-align:center;font-size:12px">Nombre</th></tr>
+          ${taskRows}
+        </table>` : '<p style="color:#7a7a6a;font-size:13px">Aucune tâche cette semaine.</p>'}
+        <div style="background:#f7f4ef;border-radius:10px;padding:12px 16px;margin-top:16px;font-size:12px;color:#7a7a6a">
+          Tokens utilisés: <strong>${totalTokens.toLocaleString('fr-FR')}</strong> · Coût estimé: <strong>${(totalCost / 100).toFixed(2)} €</strong>
+        </div>
+      </div>`;
+
+    // Send via email if Gmail connected
+    const connected = await isGmailConnected(context.clientId);
+    if (connected) {
+      try {
+        await sendEmail(context.clientId, {
+          to: 'me',
+          subject: `Rapport iArtisan - Semaine du ${fmtDate(weekStart)}`,
+          body: html,
+        });
+      } catch { /* email optional */ }
+    }
+
+    return {
+      success: true,
+      period: { start: weekStart.toISOString(), end: weekEnd.toISOString() },
+      summary: { total: tasks.length, completed, failed, tokens: totalTokens, costCents: totalCost },
+      byType,
+      html,
+    };
+  },
+};
+
 // Register all admin tools
 registerTool('email.read', emailRead);
 registerTool('email.summarize', emailRead);
@@ -443,3 +543,4 @@ registerTool('quote.generate', generateQuote);
 registerTool('invoice.generate', generateInvoice);
 registerTool('invoice.followup', followUpClient);
 registerTool('client.followup', followUpClient);
+registerTool('report.weekly', weeklyReport);

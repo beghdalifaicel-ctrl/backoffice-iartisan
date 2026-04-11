@@ -98,8 +98,14 @@ export interface AgentLog {
   metadata?: Record<string, any>;
 }
 
+export interface ToolCall {
+  id: string;
+  function: { name: string; arguments: string };
+}
+
 export interface LLMResponse {
   content: string;
+  toolCalls?: ToolCall[];
   tokensUsed: { prompt: number; completion: number; total: number };
   model: string;
   durationMs: number;
