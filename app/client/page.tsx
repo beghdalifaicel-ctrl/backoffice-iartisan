@@ -287,7 +287,7 @@ export default function ClientDashboard() {
   const navItems = [
     { id: "dashboard", label: "Accueil", icon: Home },
     { id: "outils", label: "Outils", icon: Wrench },
-    { id: "factures", label: "Factures", icon: FileText },
+    { id: "devis-factures", label: "Devis", icon: FileText, href: "/client/devis-factures" },
     { id: "profil", label: "Profil", icon: User },
     { id: "agents", label: "Agents", icon: Bot },
   ];
@@ -955,14 +955,25 @@ export default function ClientDashboard() {
       {/* ─── BOTTOM NAV ──────────────────────────────────────── */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 520, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-around", padding: "8px 0 calc(8px + env(safe-area-inset-bottom))", zIndex: 50 }}>
         {navItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => setPage(item.id)}
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: page === item.id ? C.accent : C.muted, padding: "4px 12px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif" }}
-          >
-            <item.icon size={20} />
-            {item.label}
-          </button>
+          (item as any).href ? (
+            <a
+              key={item.id}
+              href={(item as any).href}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, textDecoration: "none", color: C.muted, padding: "4px 12px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif" }}
+            >
+              <item.icon size={20} />
+              {item.label}
+            </a>
+          ) : (
+            <button
+              key={item.id}
+              onClick={() => setPage(item.id)}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: page === item.id ? C.accent : C.muted, padding: "4px 12px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif" }}
+            >
+              <item.icon size={20} />
+              {item.label}
+            </button>
+          )
         ))}
       </div>
     </div>
