@@ -151,13 +151,13 @@ export function formatRAGContext(ragContext: RAGContext): string {
     byDocument.get(docName)!.push(chunk);
   }
 
-  for (const [docName, chunks] of byDocument) {
+  byDocument.forEach((chunks, docName) => {
     context += `📄 ${docName}:\n`;
     for (const chunk of chunks) {
       const section = chunk.metadata?.section ? ` [${chunk.metadata.section}]` : '';
       context += `${chunk.content}${section}\n\n`;
     }
-  }
+  });
 
   context += '--- FIN BASE DE CONNAISSANCE ---\n';
   return context;

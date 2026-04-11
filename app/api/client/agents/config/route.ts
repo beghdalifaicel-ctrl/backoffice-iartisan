@@ -24,16 +24,17 @@ const supabase = createClient(
 // GET — Retrieve all agent configs for the authenticated client
 export async function GET(request: NextRequest) {
   const auth = await verifyAuth(request);
-  if (!auth) {
+  if (!auth || !auth.clientId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const clientId = auth.clientId;
 
   try {
     // Get client plan to know which agents are available
     const { data: client } = await supabase
       .from('clients')
       .select('plan')
-      .eq('id', auth.clientId)
+      .eq('id', clientId)
       .single();
 
     const plan = (client?.plan || 'ESSENTIEL') as PlanType;
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
     const { data: configs } = await supabase
       .from('agent_configs')
       .select('*')
-      .eq('client_id', auth.clientId)
+      .eq('client_id', clientId)
       .in('agent_type', availableAgents);
 
     // Build response with defaults for agents that don't have a config yet
@@ -69,9 +70,10 @@ export async function GET(request: NextRequest) {
 // PUT — Update agent config for a specific agent
 export async function PUT(request: NextRequest) {
   const auth = await verifyAuth(request);
-  if (!auth) {
+  if (!auth || !auth.clientId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const clientId = auth.clientId;
 
   try {
     const body = await request.json();
@@ -88,7 +90,7 @@ export async function PUT(request: NextRequest) {
     const { data: client } = await supabase
       .from('clients')
       .select('plan')
-      .eq('id', auth.clientId)
+      .eq('id', clientId)
       .single();
 
     const plan = (client?.plan || 'ESSENTIEL') as PlanType;
@@ -158,7 +160,7 @@ export async function PUT(request: NextRequest) {
       .from('agent_configs')
       .upsert(
         {
-          client_id: auth.clientId,
+          client_id: clientId,
           agent_type: agentType,
           ...updateData,
         },

@@ -20,12 +20,13 @@ const supabase = createClient(
 // GET — List all knowledge documents
 export async function GET(request: NextRequest) {
   const auth = await verifyAuth(request);
-  if (!auth) {
+  if (!auth || !auth.clientId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const clientId = auth.clientId;
 
   try {
-    const documents = await listDocuments(auth.clientId);
+    const documents = await listDocuments(clientId);
     return NextResponse.json({ documents });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -35,9 +36,10 @@ export async function GET(request: NextRequest) {
 // POST — Create a new knowledge document
 export async function POST(request: NextRequest) {
   const auth = await verifyAuth(request);
-  if (!auth) {
+  if (!auth || !auth.clientId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const clientId = auth.clientId;
 
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -108,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check document count limit (max 20 per client for now)
-    const existing = await listDocuments(auth.clientId);
+    const existing = await listDocuments(clientId);
     if (existing.length >= 20) {
       return NextResponse.json(
         { error: 'Limite de 20 documents atteinte. Supprimez un document existant.' },
@@ -125,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ingest: create doc → chunk → embed → store
-    const result = await ingestDocument(auth.clientId, name, content, {
+    const result = await ingestDocument(clientId, name, content, {
       description,
       fileType,
       agentTypes,
@@ -151,9 +153,10 @@ export async function POST(request: NextRequest) {
 // DELETE — Remove a document
 export async function DELETE(request: NextRequest) {
   const auth = await verifyAuth(request);
-  if (!auth) {
+  if (!auth || !auth.clientId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const clientId = auth.clientId;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -170,7 +173,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', documentId)
       .single();
 
-    if (!doc || doc.client_id !== auth.clientId) {
+    if (!doc || doc.client_id !== clientId) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
