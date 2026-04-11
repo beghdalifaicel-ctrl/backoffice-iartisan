@@ -65,6 +65,9 @@ model Client {
   factures    Facture[]
   articles    Article[]
 
+  // Agent IA
+  agentDevis  AgentDevis[]
+
   @@map("clients")
 }
 
@@ -305,6 +308,7 @@ model Devis {
   client        Client   @relation(fields: [clientId], references: [id])
   lots          DevisLot[]
   factures      Facture[]
+  agentDevis    AgentDevis[]
 
   @@map("devis")
 }
@@ -479,3 +483,92 @@ model Article {
 
   @@map("articles")
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BASE MATÉRIAUX BTP (partagée, globale)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model MateriauxBtp {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  categorie     String
+  sousCategorie String?  @map("sous_categorie")
+
+  designation   String
+  description   String?
+
+  unite         String   @default("m²")
+  prixUnitaireHt Float   @default(0) @map("prix_unitaire_ht")
+  tauxTva       Float    @default(20) @map("taux_tva")
+
+  prixMin       Float?   @map("prix_min")
+  prixMax       Float?   @map("prix_max")
+
+  source        String   @default("iartisan")
+  marque        String?
+  isActive      Boolean  @default(true) @map("is_active")
+
+  @@map("materiaux_btp")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEVIS GÉNÉRÉS PAR AGENTS IA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum AgentDevisSource {
+  TELEGRAM
+  WHATSAPP
+  SMS
+  WEBCHAT
+
+  @@map("agent_devis_source")
+}
+
+enum AgentDevisStatus {
+  BROUILLON
+  A_VALIDER
+  VALIDE
+  IMPORTE
+  REJETE
+
+  @@map("agent_devis_status")
+}
+
+model AgentDevis {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  source        AgentDevisSource @default(WHATSAPP)
+  conversationId String?  @map("conversation_id")
+  messageExtract String?  @map("message_extract")
+
+  prospectName  String   @map("prospect_name")
+  prospectPhone String?  @map("prospect_phone")
+  prospectEmail String?  @map("prospect_email")
+  prospectAdresse String? @map("prospect_adresse")
+  prospectVille String?  @map("prospect_ville")
+
+  objet         String
+  lignes        Json     @default("[]")
+
+  totalHtEstime Float?   @default(0) @map("total_ht_estime")
+  totalTtcEstime Float?  @default(0) @map("total_ttc_estime")
+
+  confidenceScore Float? @default(0.8) @map("confidence_score")
+
+  status        AgentDevisStatus @default(A_VALIDER)
+
+  importedDevisId String? @map("imported_devis_id")
+  importedDevis   Devis?  @relation(fields: [importedDevisId], references: [id])
+
+  clientId      String   @map("client_id")
+  client        Client   @relation(fields: [clientId], references: [id])
+
+  aiNotes       String?  @map("ai_notes")
+
+  @@map("agent_devis")
+}
+
