@@ -78,11 +78,30 @@ export interface AgentTask {
   createdAt: Date;
 }
 
+export interface AgentPersonality {
+  tone: 'professionnel' | 'amical' | 'formel' | 'decontracte';
+  tutoiement: boolean;
+  signature: string;           // e.g. "Cordialement, Sophie"
+  langue: string;              // "fr" by default
+  restrictions: string[];      // e.g. ["Ne jamais proposer de remise", "Ne pas donner de prix au téléphone"]
+}
+
+export const DEFAULT_PERSONALITY: AgentPersonality = {
+  tone: 'professionnel',
+  tutoiement: false,
+  signature: '',
+  langue: 'fr',
+  restrictions: [],
+};
+
 export interface AgentConfig {
   id: string;
   clientId: string;
   agentType: AgentType;
   enabled: boolean;
+  displayName?: string;
+  instructions: string;          // Custom instructions appended to base prompt
+  personality: AgentPersonality;
   settings: Record<string, any>;
 }
 
@@ -124,4 +143,10 @@ export interface AgentContext {
   plan: PlanType;
   integrations: Record<string, any>;
   config: AgentConfig;
+  clientInfo?: {
+    company: string;
+    metier?: string;
+    ville?: string;
+    siret?: string;
+  };
 }

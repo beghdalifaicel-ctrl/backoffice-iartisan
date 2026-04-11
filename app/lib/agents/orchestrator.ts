@@ -1,6 +1,7 @@
-import { AgentType, AgentTask, AgentContext, PlanType, PLAN_AGENTS, PLAN_QUOTAS, AGENT_CAPABILITIES } from './types';
+import { AgentType, AgentTask, AgentContext, AgentPersonality, PlanType, PLAN_AGENTS, PLAN_QUOTAS, AGENT_CAPABILITIES, DEFAULT_PERSONALITY } from './types';
 import { callLLM, estimateCostCents } from './llm';
 import { getAgentTools } from './tools/registry';
+import { searchKnowledge, formatRAGContext } from '../knowledge/rag';
 
 // SQL queries use raw Supabase client for agent tables (not in Prisma schema)
 import { createClient } from '@supabase/supabase-js';
@@ -124,17 +125,17 @@ export class AgentOrchestrator {
     return { taskId: task.id };
   }
 
-  // Build agent context from DB
+  // Build agent context from DB (now includes instructions, personality, client info)
   private async buildContext(task: any): Promise<AgentContext> {
     const { data: client } = await supabase
       .from('clients')
-      .select('plan')
+      .select('plan, company, metier, ville, siret')
       .eq('id', task.client_id)
       .single();
 
     const { data: config } = await supabase
       .from('agent_configs')
-      .select('*')
+      .select('*, display_name, instructions, personality')
       .eq('client_id', task.client_id)
       .eq('agent_type', task.agent_type)
       .single();
@@ -150,13 +151,30 @@ export class AgentOrchestrator {
       agentType: task.agent_type as AgentType,
       plan: client?.plan as PlanType,
       integrations: Object.fromEntries((integrations || []).map((i: any) => [i.type, i])),
-      config: config || {
+      config: config ? {
+        id: config.id,
+        clientId: config.client_id,
+        agentType: config.agent_type,
+        enabled: config.enabled,
+        displayName: config.display_name,
+        instructions: config.instructions || '',
+        personality: config.personality || DEFAULT_PERSONALITY,
+        settings: config.settings || {},
+      } : {
         id: '',
         clientId: task.client_id,
         agentType: task.agent_type,
         enabled: true,
+        instructions: '',
+        personality: DEFAULT_PERSONALITY,
         settings: {},
       },
+      clientInfo: client ? {
+        company: client.company,
+        metier: client.metier,
+        ville: client.ville,
+        siret: client.siret,
+      } : undefined,
     };
   }
 
@@ -271,13 +289,22 @@ export class AgentOrchestrator {
     }
   }
 
-  // LLM-assisted processing with tool execution loop
+  // LLM-assisted processing with tool execution loop + RAG context injection
   private async processWithLLM(
     task: any,
     tools: any[],
     context: AgentContext
   ): Promise<{ result: any; tokensUsed: number; model: string }> {
-    const systemPrompt = this.buildSystemPrompt(context, task.task_type);
+    // Search knowledge base for relevant context
+    const userMessage = task.payload?._channelMessage || JSON.stringify(task.payload);
+    const ragContext = await searchKnowledge(
+      context.clientId,
+      context.agentType,
+      userMessage,
+      { maxResults: 5, maxTokens: 2000 }
+    );
+
+    const systemPrompt = this.buildSystemPrompt(context, task.task_type, ragContext.chunks.length > 0 ? formatRAGContext(ragContext) : undefined);
     let totalTokens = 0;
     let model = '';
 
@@ -344,24 +371,72 @@ export class AgentOrchestrator {
     };
   }
 
-  private buildSystemPrompt(context: AgentContext, taskType: string): string {
-    const basePrompt = `Tu es un agent IA spécialisé pour les artisans du bâtiment en France.
-Tu travailles pour le compte de l'entreprise de l'artisan. Sois professionnel, concis et efficace.
-Réponds toujours en français. Adapte ton ton au métier de l'artisan.`;
+  private buildSystemPrompt(context: AgentContext, taskType: string, ragBlock?: string): string {
+    const personality = context.config.personality || DEFAULT_PERSONALITY;
+    const displayName = context.config.displayName || context.agentType;
 
-    const agentPrompts: Record<AgentType, string> = {
-      ADMIN: `${basePrompt}
-Tu es l'Agent Admin. Tu gères l'administratif : emails, devis, factures, relances clients.
-Tu connais les termes techniques du bâtiment et tu sais rédiger des devis professionnels.`,
-      MARKETING: `${basePrompt}
-Tu es l'Agent Marketing. Tu gères la présence en ligne : fiche Google, avis, SEO local, réseaux sociaux.
-Tu sais comment optimiser la visibilité locale d'un artisan.`,
-      COMMERCIAL: `${basePrompt}
-Tu es l'Agent Commercial. Tu prospectes, qualifies les leads, et relances les impayés.
-Tu es persuasif mais professionnel, et tu connais le secteur du BTP.`,
+    // ─── 1. Base identity ─────────────────────────────────────────────
+    let prompt = `Tu es ${displayName}, un agent IA spécialisé pour les artisans du bâtiment en France.\n`;
+
+    // Client context
+    if (context.clientInfo) {
+      const { company, metier, ville } = context.clientInfo;
+      prompt += `Tu travailles pour ${company}`;
+      if (metier) prompt += `, ${metier}`;
+      if (ville) prompt += ` à ${ville}`;
+      prompt += '.\n';
+    } else {
+      prompt += `Tu travailles pour le compte de l'entreprise de l'artisan.\n`;
+    }
+
+    // ─── 2. Agent speciality ──────────────────────────────────────────
+    const agentSpecialties: Record<AgentType, string> = {
+      ADMIN: `Tu gères l'administratif : emails, devis, factures, relances clients. Tu connais les termes techniques du bâtiment et tu sais rédiger des devis professionnels.`,
+      MARKETING: `Tu gères la présence en ligne : fiche Google, avis, SEO local, réseaux sociaux. Tu sais comment optimiser la visibilité locale d'un artisan.`,
+      COMMERCIAL: `Tu prospectes, qualifies les leads, et relances les impayés. Tu es persuasif mais professionnel, et tu connais le secteur du BTP.`,
     };
+    prompt += (agentSpecialties[context.agentType] || '') + '\n';
 
-    return agentPrompts[context.agentType] || basePrompt;
+    // ─── 3. Personality & tone ────────────────────────────────────────
+    const toneDescriptions: Record<string, string> = {
+      professionnel: 'Sois professionnel, concis et efficace.',
+      amical: 'Sois chaleureux, accessible et bienveillant, tout en restant compétent.',
+      formel: 'Sois très formel et structuré. Utilise un registre soutenu.',
+      decontracte: 'Sois décontracté et direct, comme un collègue de confiance.',
+    };
+    prompt += (toneDescriptions[personality.tone] || toneDescriptions.professionnel) + '\n';
+
+    if (personality.tutoiement) {
+      prompt += 'Tutoie toujours ton interlocuteur.\n';
+    } else {
+      prompt += 'Vouvoie toujours ton interlocuteur.\n';
+    }
+
+    prompt += 'Réponds toujours en français.\n';
+
+    if (personality.signature) {
+      prompt += `Termine toujours tes emails et messages par : "${personality.signature}"\n`;
+    }
+
+    // ─── 4. Restrictions ──────────────────────────────────────────────
+    if (personality.restrictions && personality.restrictions.length > 0) {
+      prompt += '\nRÈGLES STRICTES :\n';
+      for (const rule of personality.restrictions) {
+        prompt += `- ${rule}\n`;
+      }
+    }
+
+    // ─── 5. Custom instructions ───────────────────────────────────────
+    if (context.config.instructions && context.config.instructions.trim()) {
+      prompt += `\nINSTRUCTIONS SPÉCIFIQUES :\n${context.config.instructions}\n`;
+    }
+
+    // ─── 6. RAG context (knowledge base) ──────────────────────────────
+    if (ragBlock) {
+      prompt += ragBlock;
+    }
+
+    return prompt;
   }
 
   private async logExecution(log: {
