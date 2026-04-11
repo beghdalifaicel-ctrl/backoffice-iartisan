@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Home, FileText, User, Bot, LogOut, TrendingUp, ArrowUpRight, ArrowDownRight, Phone, Clock, CheckCircle, Star, CreditCard, Edit, Save, Zap, Activity, AlertTriangle, CalendarDays, Wrench, Play, Search, Mail, MessageSquare, Globe, BarChart3, FileEdit, Send, RefreshCw, Loader2, ChevronRight, X } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { Home, Zap, FileText, User, LogOut, TrendingUp, ArrowUpRight, ArrowDownRight, Phone, Clock, CheckCircle, Star, CreditCard, Edit, Save, Activity, AlertTriangle, CalendarDays, Play, Search, Mail, MessageSquare, Globe, BarChart3, FileEdit, Send, RefreshCw, Loader2, ChevronRight, X, Bell, Shield, ShieldCheck, Rocket, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Eye } from "lucide-react";
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
@@ -13,26 +12,63 @@ const C = {
 
 const PLAN_LABELS: Record<string, string> = { ESSENTIEL: "Essentiel", CROISSANCE: "Pro", PILOTE_AUTO: "Max" };
 const PLAN_PRICES: Record<string, number> = { ESSENTIEL: 49, CROISSANCE: 99, PILOTE_AUTO: 179 };
+
+const SUB_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  active: { label: "Actif", color: C.green },
+  trialing: { label: "Essai gratuit", color: C.blue },
+  past_due: { label: "Impayé", color: C.red },
+  canceled: { label: "Annulé", color: C.muted },
+  incomplete: { label: "Incomplet", color: C.yellow },
+};
+
+// ─── WORDING DÉTECHNICISÉ ────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  NEW: { label: "Nouveau", color: C.blue },
+  NEW: { label: "Nouvelle demande", color: C.blue },
   CONTACTED: { label: "Contacté", color: C.accent },
   RDV_BOOKED: { label: "RDV pris", color: C.yellow },
-  WON: { label: "Gagné", color: C.green },
+  WON: { label: "Client gagné", color: C.green },
   LOST: { label: "Perdu", color: C.red },
 };
 const SOURCE_LABELS: Record<string, string> = {
   GOOGLE_ADS: "Google Ads", GOOGLE_BUSINESS: "Google Business", SITE_VITRINE: "Site Vitrine", FORM: "Formulaire", WHATSAPP: "WhatsApp",
 };
-const AGENT_TYPE_LABELS: Record<string, string> = {
-  COMMERCIAL: "Commercial", MARKETING: "Marketing", ADMIN: "Admin",
+
+// Assistant au lieu d'Agent — noms fonctionnels
+const ASSISTANT_LABELS: Record<string, { label: string; emoji: string; desc: string; color: string }> = {
+  ADMIN: { label: "Assistant Gestion", emoji: "📋", desc: "Devis, factures, relances clients", color: "#2563eb" },
+  MARKETING: { label: "Assistant Visibilité", emoji: "📢", desc: "Google, avis, SEO, réseaux sociaux", color: "#2d6a4f" },
+  COMMERCIAL: { label: "Assistant Prospection", emoji: "💼", desc: "Nouveaux clients, qualification, relances impayés", color: "#ff5c00" },
 };
-const TASK_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  COMPLETED: { label: "Terminé", color: C.green },
-  FAILED: { label: "Échoué", color: C.red },
-  PENDING: { label: "En attente", color: C.yellow },
-  PROCESSING: { label: "En cours", color: C.blue },
+
+// Task labels humanisés (français)
+const TASK_LABELS: Record<string, string> = {
+  "email.read": "Lecture des emails",
+  "quote.generate": "Création de devis",
+  "invoice.generate": "Création de facture",
+  "client.followup": "Relance client",
+  "report.weekly": "Rapport hebdomadaire",
+  "gbp.optimize": "Audit Google Business",
+  "gbp.post": "Publication Google Business",
+  "review.respond": "Réponse à un avis",
+  "seo.audit": "Audit SEO local",
+  "site.update": "Contenu site web",
+  "social.post": "Publication réseaux sociaux",
+  "lead.scrape": "Recherche de prospects",
+  "prospect.email": "Email de prospection",
+  "lead.qualify": "Qualification de demande",
+  "lead.respond": "Réponse à une demande",
+  "invoice.collect": "Relance impayé",
+  "directory.enroll": "Inscription annuaire",
 };
-// ─── OUTILS AGENTS ───────────────────────────────────────────────────────────
+
+const TASK_STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+  COMPLETED: { label: "Fait ✓", color: C.green, icon: "✅" },
+  FAILED: { label: "Problème", color: C.red, icon: "❌" },
+  PENDING: { label: "En cours...", color: C.yellow, icon: "⏳" },
+  PROCESSING: { label: "En cours...", color: C.blue, icon: "⚙️" },
+};
+
+// ─── OUTILS AGENTS — REGROUPÉS PAR BESOIN MÉTIER ─────────────────────────────
 type ToolDef = {
   taskType: string;
   agentType: string;
@@ -42,94 +78,110 @@ type ToolDef = {
   fields?: { key: string; label: string; placeholder: string; type?: string; options?: { value: string; label: string }[] }[];
 };
 
-const AGENT_TOOLS: ToolDef[] = [
-  // ADMIN
-  { taskType: "email.read", agentType: "ADMIN", label: "Lire les emails", desc: "Résumé des emails non lus", icon: Mail, fields: [] },
-  { taskType: "quote.generate", agentType: "ADMIN", label: "Générer un devis", desc: "Crée un devis professionnel", icon: FileEdit, fields: [
-    { key: "clientName", label: "Nom du client", placeholder: "Ex: Dr. Martin" },
-    { key: "description", label: "Description", placeholder: "Ex: Pose de 3 implants" },
-    { key: "amount", label: "Montant HT (€)", placeholder: "1500", type: "number" },
-  ]},
-  { taskType: "invoice.generate", agentType: "ADMIN", label: "Générer une facture", desc: "Crée une facture à partir d'un devis", icon: FileText, fields: [
-    { key: "clientName", label: "Nom du client", placeholder: "Ex: Dr. Martin" },
-    { key: "description", label: "Description", placeholder: "Prestation réalisée" },
-    { key: "amount", label: "Montant HT (€)", placeholder: "1500", type: "number" },
-  ]},
-  { taskType: "client.followup", agentType: "ADMIN", label: "Relance client", desc: "Envoie une relance personnalisée", icon: Send, fields: [
-    { key: "type", label: "Type de relance", placeholder: "", options: [
-      { value: "devis_pending", label: "Devis en attente" },
-      { value: "rdv_reminder", label: "Rappel de RDV" },
-      { value: "satisfaction", label: "Enquête satisfaction" },
-      { value: "payment_reminder", label: "Rappel de paiement" },
-    ]},
-  ]},
-  { taskType: "report.weekly", agentType: "ADMIN", label: "Rapport hebdo", desc: "Génère un rapport d'activité de la semaine", icon: BarChart3, fields: [] },
-  // MARKETING
-  { taskType: "gbp.optimize", agentType: "MARKETING", label: "Audit Google Business", desc: "Analyse et optimise votre fiche GBP", icon: Search, fields: [] },
-  { taskType: "gbp.post", agentType: "MARKETING", label: "Post Google Business", desc: "Crée un post pour votre fiche GBP", icon: Globe, fields: [
-    { key: "type", label: "Type de post", placeholder: "", options: [
-      { value: "update", label: "Actualité" },
-      { value: "offer", label: "Offre / Promo" },
-      { value: "event", label: "Événement" },
-    ]},
-    { key: "topic", label: "Sujet", placeholder: "Ex: Nouveau service blanchiment" },
-  ]},
-  { taskType: "review.respond", agentType: "MARKETING", label: "Répondre à un avis", desc: "Rédige une réponse professionnelle", icon: MessageSquare, fields: [
-    { key: "reviewerName", label: "Auteur de l'avis", placeholder: "Jean D." },
-    { key: "rating", label: "Note (1-5)", placeholder: "4", type: "number" },
-    { key: "reviewText", label: "Texte de l'avis", placeholder: "Très bon accueil, je recommande..." },
-  ]},
-  { taskType: "seo.audit", agentType: "MARKETING", label: "Audit SEO local", desc: "Analyse votre référencement local", icon: BarChart3, fields: [] },
-  { taskType: "site.update", agentType: "MARKETING", label: "Contenu site web", desc: "Génère du texte optimisé pour votre site", icon: FileEdit, fields: [
-    { key: "pageType", label: "Type de page", placeholder: "", options: [
-      { value: "home", label: "Accueil" },
-      { value: "services", label: "Services" },
-      { value: "about", label: "À propos" },
-      { value: "blog_post", label: "Article blog" },
-    ]},
-    { key: "topic", label: "Sujet / titre", placeholder: "Ex: Nos services de rénovation" },
-  ]},
-  { taskType: "social.post", agentType: "MARKETING", label: "Post réseaux sociaux", desc: "Crée un post Facebook, Instagram ou LinkedIn", icon: Globe, fields: [
-    { key: "platform", label: "Réseau", placeholder: "", options: [
-      { value: "facebook", label: "Facebook" },
-      { value: "instagram", label: "Instagram" },
-      { value: "linkedin", label: "LinkedIn" },
-    ]},
-    { key: "topic", label: "Sujet", placeholder: "Ex: Journée mondiale du sourire" },
-  ]},
-  // COMMERCIAL
-  { taskType: "lead.scrape", agentType: "COMMERCIAL", label: "Trouver des prospects", desc: "Scrape annuaires pour trouver de nouveaux leads", icon: Search, fields: [
-    { key: "sector", label: "Secteur", placeholder: "Ex: dentiste, plombier" },
-    { key: "city", label: "Ville", placeholder: "Ex: Lyon" },
-  ]},
-  { taskType: "prospect.email", agentType: "COMMERCIAL", label: "Email de prospection", desc: "Envoie un email de prospection personnalisé", icon: Send, fields: [
-    { key: "sector", label: "Secteur cible", placeholder: "Ex: dentiste" },
-    { key: "angle", label: "Angle d'approche", placeholder: "Ex: visibilité Google" },
-  ]},
-  { taskType: "lead.qualify", agentType: "COMMERCIAL", label: "Qualifier un lead", desc: "Analyse et score un prospect entrant", icon: Activity, fields: [
-    { key: "leadName", label: "Nom du prospect", placeholder: "Ex: Pierre Durand" },
-    { key: "message", label: "Sa demande", placeholder: "Ex: Besoin d'un plombier pour rénovation salle de bain" },
-    { key: "source", label: "Source", placeholder: "Ex: site web, Google, bouche à oreille" },
-  ]},
-  { taskType: "lead.respond", agentType: "COMMERCIAL", label: "Répondre à un lead", desc: "Envoie une réponse personnalisée à un prospect", icon: Mail, fields: [
-    { key: "leadName", label: "Nom du prospect", placeholder: "Ex: Pierre Durand" },
-    { key: "leadEmail", label: "Email du prospect", placeholder: "pierre@email.com" },
-    { key: "originalMessage", label: "Sa demande", placeholder: "Le message du prospect" },
-  ]},
-  { taskType: "invoice.collect", agentType: "COMMERCIAL", label: "Relance impayé", desc: "Envoie une relance de paiement adaptée", icon: CreditCard, fields: [
-    { key: "clientName", label: "Nom du client", placeholder: "Ex: Société Martin" },
-    { key: "clientEmail", label: "Email du client", placeholder: "client@email.com" },
-    { key: "amount", label: "Montant (€)", placeholder: "1500", type: "number" },
-    { key: "relanceLevel", label: "Niveau", placeholder: "", options: [
-      { value: "1", label: "Amicale (1re relance)" },
-      { value: "2", label: "Ferme (2e relance)" },
-      { value: "3", label: "Mise en demeure" },
-    ]},
-  ]},
-  { taskType: "directory.enroll", agentType: "COMMERCIAL", label: "Inscription annuaire", desc: "Prépare votre inscription sur un annuaire pro", icon: Globe, fields: [
-    { key: "directoryName", label: "Nom de l'annuaire", placeholder: "Ex: PagesJaunes" },
-  ]},
+// Groupés par besoin métier au lieu de par type d'agent
+const TOOL_CATEGORIES: { id: string; label: string; emoji: string; desc: string; tools: ToolDef[] }[] = [
+  {
+    id: "clients", label: "Gérer mes clients", emoji: "👥", desc: "Devis, factures, relances",
+    tools: [
+      { taskType: "quote.generate", agentType: "ADMIN", label: "Créer un devis", desc: "Génère un devis professionnel", icon: FileEdit, fields: [
+        { key: "clientName", label: "Nom du client", placeholder: "Ex: Pierre Durand" },
+        { key: "description", label: "Description des travaux", placeholder: "Ex: Rénovation salle de bain" },
+        { key: "amount", label: "Montant HT (€)", placeholder: "1500", type: "number" },
+      ]},
+      { taskType: "invoice.generate", agentType: "ADMIN", label: "Créer une facture", desc: "Facture à partir d'un devis validé", icon: FileText, fields: [
+        { key: "clientName", label: "Nom du client", placeholder: "Ex: Pierre Durand" },
+        { key: "description", label: "Prestation réalisée", placeholder: "Travaux effectués" },
+        { key: "amount", label: "Montant HT (€)", placeholder: "1500", type: "number" },
+      ]},
+      { taskType: "client.followup", agentType: "ADMIN", label: "Relancer un client", desc: "Envoie une relance personnalisée", icon: Send, fields: [
+        { key: "type", label: "Type de relance", placeholder: "", options: [
+          { value: "devis_pending", label: "Devis en attente de réponse" },
+          { value: "rdv_reminder", label: "Rappel de RDV" },
+          { value: "satisfaction", label: "Enquête satisfaction" },
+          { value: "payment_reminder", label: "Rappel de paiement" },
+        ]},
+      ]},
+      { taskType: "invoice.collect", agentType: "COMMERCIAL", label: "Relancer un impayé", desc: "Relance de paiement adaptée au niveau", icon: CreditCard, fields: [
+        { key: "clientName", label: "Nom du client", placeholder: "Ex: Société Martin" },
+        { key: "clientEmail", label: "Email du client", placeholder: "client@email.com" },
+        { key: "amount", label: "Montant (€)", placeholder: "1500", type: "number" },
+        { key: "relanceLevel", label: "Niveau", placeholder: "", options: [
+          { value: "1", label: "Amicale (1re relance)" },
+          { value: "2", label: "Ferme (2e relance)" },
+          { value: "3", label: "Mise en demeure" },
+        ]},
+      ]},
+      { taskType: "lead.respond", agentType: "COMMERCIAL", label: "Répondre à une demande", desc: "Réponse personnalisée à un prospect", icon: Mail, fields: [
+        { key: "leadName", label: "Nom du prospect", placeholder: "Ex: Pierre Durand" },
+        { key: "leadEmail", label: "Email", placeholder: "pierre@email.com" },
+        { key: "originalMessage", label: "Sa demande", placeholder: "Le message du prospect" },
+      ]},
+      { taskType: "email.read", agentType: "ADMIN", label: "Lire mes emails", desc: "Résumé des emails non lus", icon: Mail, fields: [] },
+      { taskType: "report.weekly", agentType: "ADMIN", label: "Rapport de la semaine", desc: "Résumé de votre activité", icon: BarChart3, fields: [] },
+    ],
+  },
+  {
+    id: "visibilite", label: "Être visible sur Google", emoji: "🔍", desc: "Avis, SEO, réseaux sociaux",
+    tools: [
+      { taskType: "gbp.optimize", agentType: "MARKETING", label: "Audit Google Business", desc: "Analyse et améliore votre fiche", icon: Search, fields: [] },
+      { taskType: "gbp.post", agentType: "MARKETING", label: "Publier sur Google", desc: "Actualité, offre ou événement", icon: Globe, fields: [
+        { key: "type", label: "Type", placeholder: "", options: [
+          { value: "update", label: "Actualité" },
+          { value: "offer", label: "Offre / Promo" },
+          { value: "event", label: "Événement" },
+        ]},
+        { key: "topic", label: "Sujet", placeholder: "Ex: Nouveau service" },
+      ]},
+      { taskType: "review.respond", agentType: "MARKETING", label: "Répondre à un avis", desc: "Réponse pro à un avis Google", icon: MessageSquare, fields: [
+        { key: "reviewerName", label: "Auteur de l'avis", placeholder: "Jean D." },
+        { key: "rating", label: "Note (1-5)", placeholder: "4", type: "number" },
+        { key: "reviewText", label: "Texte de l'avis", placeholder: "Très bon accueil, je recommande..." },
+      ]},
+      { taskType: "seo.audit", agentType: "MARKETING", label: "Audit SEO local", desc: "Votre référencement local", icon: BarChart3, fields: [] },
+      { taskType: "site.update", agentType: "MARKETING", label: "Contenu site web", desc: "Texte optimisé pour votre site", icon: FileEdit, fields: [
+        { key: "pageType", label: "Type de page", placeholder: "", options: [
+          { value: "home", label: "Accueil" },
+          { value: "services", label: "Services" },
+          { value: "about", label: "À propos" },
+          { value: "blog_post", label: "Article blog" },
+        ]},
+        { key: "topic", label: "Sujet", placeholder: "Ex: Nos services de rénovation" },
+      ]},
+      { taskType: "social.post", agentType: "MARKETING", label: "Publier sur les réseaux", desc: "Facebook, Instagram, LinkedIn", icon: Globe, fields: [
+        { key: "platform", label: "Réseau", placeholder: "", options: [
+          { value: "facebook", label: "Facebook" },
+          { value: "instagram", label: "Instagram" },
+          { value: "linkedin", label: "LinkedIn" },
+        ]},
+        { key: "topic", label: "Sujet", placeholder: "Ex: Chantier terminé" },
+      ]},
+    ],
+  },
+  {
+    id: "prospection", label: "Trouver de nouveaux clients", emoji: "🎯", desc: "Prospection, qualification",
+    tools: [
+      { taskType: "lead.scrape", agentType: "COMMERCIAL", label: "Chercher des prospects", desc: "Trouve des contacts dans votre zone", icon: Search, fields: [
+        { key: "sector", label: "Secteur", placeholder: "Ex: dentiste, plombier" },
+        { key: "city", label: "Ville", placeholder: "Ex: Lyon" },
+      ]},
+      { taskType: "prospect.email", agentType: "COMMERCIAL", label: "Email de prospection", desc: "Email personnalisé pour un prospect", icon: Send, fields: [
+        { key: "sector", label: "Secteur cible", placeholder: "Ex: dentiste" },
+        { key: "angle", label: "Angle d'approche", placeholder: "Ex: visibilité Google" },
+      ]},
+      { taskType: "lead.qualify", agentType: "COMMERCIAL", label: "Qualifier une demande", desc: "Analyse et note un prospect", icon: Activity, fields: [
+        { key: "leadName", label: "Nom du prospect", placeholder: "Ex: Pierre Durand" },
+        { key: "message", label: "Sa demande", placeholder: "Ex: Besoin d'un plombier pour rénovation" },
+        { key: "source", label: "Source", placeholder: "Ex: site web, Google, bouche à oreille" },
+      ]},
+      { taskType: "directory.enroll", agentType: "COMMERCIAL", label: "Inscription annuaire", desc: "Annuaire pro (PagesJaunes, etc.)", icon: Globe, fields: [
+        { key: "directoryName", label: "Annuaire", placeholder: "Ex: PagesJaunes" },
+      ]},
+    ],
+  },
 ];
+
+// Flat list of all tools for lookup
+const ALL_TOOLS = TOOL_CATEGORIES.flatMap(c => c.tools);
 
 const PLAN_AGENT_ACCESS: Record<string, string[]> = {
   ESSENTIEL: ["ADMIN"],
@@ -137,19 +189,12 @@ const PLAN_AGENT_ACCESS: Record<string, string[]> = {
   PILOTE_AUTO: ["ADMIN", "MARKETING", "COMMERCIAL"],
 };
 
-const AGENT_TYPE_COLORS: Record<string, string> = {
-  ADMIN: "#2563eb",
-  MARKETING: "#2d6a4f",
-  COMMERCIAL: "#ff5c00",
-};
-
-const SUB_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  active: { label: "Actif", color: C.green },
-  trialing: { label: "Essai gratuit", color: C.blue },
-  past_due: { label: "Impayé", color: C.red },
-  canceled: { label: "Annulé", color: C.muted },
-  incomplete: { label: "Incomplet", color: C.yellow },
-};
+// ─── AUTONOMY LEVELS ─────────────────────────────────────────────────────────
+const AUTONOMY_LEVELS = [
+  { id: "assisted", icon: Shield, label: "Il prépare, vous validez", desc: "Pour démarrer en confiance", color: C.blue },
+  { id: "semi", icon: ShieldCheck, label: "L'essentiel en auto", desc: "Recommandé après 1 mois", color: C.accent },
+  { id: "auto", icon: Rocket, label: "Il gère tout, vous êtes informé", desc: "Pour les pros confiants", color: C.green },
+];
 
 type DashboardData = {
   client: any;
@@ -170,7 +215,7 @@ type AgentsData = {
 } | null;
 
 export default function ClientDashboard() {
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState("accueil");
   const [data, setData] = useState<DashboardData>(null);
   const [agents, setAgents] = useState<AgentsData>(null);
   const [allInvoices, setAllInvoices] = useState<any[]>([]);
@@ -179,7 +224,7 @@ export default function ClientDashboard() {
   const [editData, setEditData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // Outils Agents state
+  // Actions state
   const [selectedTool, setSelectedTool] = useState<ToolDef | null>(null);
   const [toolFormData, setToolFormData] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -187,6 +232,13 @@ export default function ClientDashboard() {
   const [toolsHistory, setToolsHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
+  // Agents fiches state
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  // Autonomy levels per agent (stored locally for now)
+  const [autonomyLevels, setAutonomyLevels] = useState<Record<string, string>>({
+    ADMIN: "assisted", MARKETING: "assisted", COMMERCIAL: "assisted",
+  });
 
   useEffect(() => {
     Promise.all([
@@ -227,9 +279,9 @@ export default function ClientDashboard() {
     }
   };
 
-  // ─── Fetch tools history when switching to outils ───
+  // Fetch history when switching to actions
   useEffect(() => {
-    if (page === "outils") {
+    if (page === "actions") {
       setHistoryLoading(true);
       fetch("/api/client/agents/tasks?limit=20")
         .then(r => r.ok ? r.json() : { tasks: [] })
@@ -256,7 +308,6 @@ export default function ClientDashboard() {
         setTaskResult({ id: json.taskId, status: "PENDING" });
         setSelectedTool(null);
         setToolFormData({});
-        // Refresh history
         const hRes = await fetch("/api/client/agents/tasks?limit=20");
         if (hRes.ok) { const hData = await hRes.json(); setToolsHistory(hData.tasks || []); }
       } else {
@@ -275,21 +326,48 @@ export default function ClientDashboard() {
       const res = await fetch("/api/client/billing/portal", { method: "POST" });
       const json = await res.json();
       if (json.url) window.location.href = json.url;
-    } catch {
-      // silently fail
-    } finally {
+    } catch { /* silently fail */ } finally {
       setBillingLoading(false);
     }
   };
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR");
+  const fmtRelative = (d: string) => {
+    const diff = Date.now() - new Date(d).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `il y a ${mins} min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `il y a ${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `il y a ${days}j`;
+  };
+
+  // ─── Compute alerts for the "À traiter" zone ───
+  const computeAlerts = () => {
+    const alerts: { type: "red" | "orange" | "green"; text: string; action?: string }[] = [];
+    if (data) {
+      const newLeads = data.leads.byStatus?.NEW || 0;
+      if (newLeads > 0) alerts.push({ type: "red", text: `${newLeads} demande${newLeads > 1 ? "s" : ""} en attente de réponse`, action: "Voir les demandes" });
+    }
+    if (agents?.recentTasks) {
+      const failed = agents.recentTasks.filter((t: any) => t.status === "FAILED").length;
+      if (failed > 0) alerts.push({ type: "orange", text: `${failed} action${failed > 1 ? "s" : ""} en erreur — vérifiez le détail`, action: "Voir le journal" });
+    }
+    if (alerts.length === 0) {
+      const completedThisWeek = agents?.agentTaskStats?.completed || 0;
+      alerts.push({ type: "green", text: `Tout roule — vos assistants ont traité ${completedThisWeek} action${completedThisWeek !== 1 ? "s" : ""} récemment` });
+    }
+    return alerts;
+  };
+
+  // ─── NAV — 4 onglets rationalisés ───
+  const alertCount = (data?.leads.byStatus?.NEW || 0) + (agents?.recentTasks?.filter((t: any) => t.status === "FAILED").length || 0);
 
   const navItems = [
-    { id: "dashboard", label: "Accueil", icon: Home },
-    { id: "outils", label: "Outils", icon: Wrench },
+    { id: "accueil", label: "Accueil", icon: Home },
+    { id: "actions", label: "Actions", icon: Zap },
     { id: "devis-factures", label: "Devis", icon: FileText, href: "/client/devis-factures" },
-    { id: "profil", label: "Profil", icon: User },
-    { id: "agents", label: "Agents", icon: Bot },
+    { id: "compte", label: "Mon compte", icon: User },
   ];
 
   if (loading) {
@@ -303,239 +381,385 @@ export default function ClientDashboard() {
 
   const client = data?.client;
   const plan = client?.plan || "ESSENTIEL";
+  const allowed = PLAN_AGENT_ACCESS[plan] || PLAN_AGENT_ACCESS.ESSENTIEL;
 
   return (
     <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", background: C.bg, minHeight: "100vh", color: C.dark, fontSize: 14, maxWidth: 520, margin: "0 auto", position: "relative" }}>
       <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       <div style={{ paddingBottom: 80 }}>
-        {/* ─── HEADER ──────────────────────────────────────── */}
+        {/* ─── HEADER — Salut contextuel, pas de carte plan ──── */}
         <div style={{ padding: "16px 16px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 16 }}>iA</div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>Bonjour {client?.firstName || ""}!</div>
-              <div style={{ fontSize: 12, color: C.muted }}>{client?.company} &middot; {PLAN_LABELS[plan]}</div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>Bonjour {client?.firstName || ""} !</div>
+              <div style={{ fontSize: 12, color: C.muted }}>
+                {agents?.agentTaskStats?.completed
+                  ? `Vos assistants ont traité ${agents.agentTaskStats.completed} actions`
+                  : client?.company || "Bienvenue"
+                }
+              </div>
             </div>
           </div>
-          <button onClick={handleLogout} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 8 }}>
+          <button onClick={handleLogout} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 8, minWidth: 48, minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <LogOut size={20} />
           </button>
         </div>
 
-        {/* ─── CONTENT ──────────────────────────────────────── */}
+        {/* Trial banner — discret, pas un bloc entier */}
+        {client?.status === "TRIAL" && client?.trialEndsAt && (
+          <div style={{ margin: "8px 16px 0", background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 10, padding: "8px 14px", fontSize: 12, color: C.blue, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span><Clock size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />Essai gratuit — {Math.max(0, Math.ceil((new Date(client.trialEndsAt).getTime() - Date.now()) / 86400000))} jours restants</span>
+            <span style={{ fontWeight: 600, cursor: "pointer" }} onClick={() => setPage("compte")}>Voir les plans</span>
+          </div>
+        )}
+
         <div style={{ padding: 16 }}>
 
-          {/* ═══ DASHBOARD ═══ */}
-          {page === "dashboard" && data && (
+          {/* ═══════════════════════════════════════════════════════
+              ACCUEIL — 3 zones : À traiter / Chiffres / Fil d'activité
+              ═══════════════════════════════════════════════════════ */}
+          {page === "accueil" && data && (
             <>
-              {/* Plan + Stripe card */}
-              <div style={{ background: C.dark, borderRadius: 14, padding: "18px 20px", marginBottom: 16, color: "#fff" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 12, opacity: 0.6 }}>Votre plan</div>
-                    <div style={{ fontSize: 22, fontWeight: 800 }}>{PLAN_LABELS[plan]}</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 22, fontWeight: 800 }}>{PLAN_PRICES[plan]}€<span style={{ fontSize: 12, fontWeight: 400, opacity: 0.6 }}>/mois</span></div>
-                  </div>
-                </div>
-
-                {/* Stripe subscription status */}
-                {data.subscription && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600, background: `${SUB_STATUS_MAP[data.subscription.status]?.color || C.muted}30`, color: SUB_STATUS_MAP[data.subscription.status]?.color || "#fff" }}>
-                      {SUB_STATUS_MAP[data.subscription.status]?.label || data.subscription.status}
-                    </span>
-                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, background: "rgba(255,255,255,0.1)" }}>
-                      <CalendarDays size={10} style={{ marginRight: 4, verticalAlign: "middle" }} />
-                      Période : {fmtDate(data.subscription.currentPeriodStart)} → {fmtDate(data.subscription.currentPeriodEnd)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Trial info */}
-                {client?.status === "TRIAL" && client?.trialEndsAt && (
-                  <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 12px", fontSize: 12, marginBottom: 8 }}>
-                    <Clock size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />
-                    Essai gratuit jusqu&apos;au {fmtDate(client.trialEndsAt)}
-                  </div>
-                )}
-
-                {/* Upcoming invoice */}
-                {data.upcomingInvoice && (
-                  <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
-                    <CreditCard size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />
-                    Prochaine facture : {(data.upcomingInvoice.amount / 100).toFixed(2)}€
-                    {data.upcomingInvoice.date && ` le ${fmtDate(data.upcomingInvoice.date)}`}
-                  </div>
-                )}
+              {/* ZONE 1 — À traiter (traffic light) */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>À voir en priorité</div>
+                {computeAlerts().map((alert, i) => {
+                  const bg = alert.type === "red" ? `${C.red}10` : alert.type === "orange" ? `${C.yellow}15` : `${C.green}10`;
+                  const borderColor = alert.type === "red" ? `${C.red}40` : alert.type === "orange" ? `${C.yellow}40` : `${C.green}30`;
+                  const textColor = alert.type === "red" ? C.red : alert.type === "orange" ? "#946800" : C.green;
+                  const emoji = alert.type === "red" ? "🔴" : alert.type === "orange" ? "🟠" : "🟢";
+                  return (
+                    <div key={i} style={{ background: bg, border: `1px solid ${borderColor}`, borderRadius: 12, padding: "14px 16px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 48 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 16 }}>{emoji}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: textColor }}>{alert.text}</span>
+                      </div>
+                      {alert.action && (
+                        <button onClick={() => setPage("actions")} style={{ background: "none", border: "none", fontSize: 12, fontWeight: 600, color: C.accent, cursor: "pointer", padding: "4px 8px", minHeight: 48, display: "flex", alignItems: "center" }}>
+                          {alert.action}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* KPIs */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                {[
-                  { label: "Leads ce mois", value: data.leads.thisMonth, prev: data.leads.lastMonth, icon: TrendingUp },
-                  { label: "Leads total", value: data.leads.total, icon: Phone },
-                  { label: "Taux conversion", value: `${data.leads.conversionRate}%`, icon: CheckCircle },
-                  { label: "Note Google", value: client?.googleRating ? `${client.googleRating}/5` : "N/A", icon: Star },
-                ].map((kpi, i) => (
-                  <div key={i} style={{ background: C.surface, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{kpi.label}</span>
-                      <kpi.icon size={14} color={C.muted} />
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 800 }}>{kpi.value}</div>
-                    {"prev" in kpi && typeof kpi.prev === "number" && (
-                      <div style={{ fontSize: 11, color: (kpi.value as number) >= kpi.prev ? C.green : C.red, display: "flex", alignItems: "center", gap: 3, marginTop: 4 }}>
-                        {(kpi.value as number) >= kpi.prev ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                        vs {kpi.prev} mois dernier
+              {/* ZONE 2 — Chiffres du mois (simplifié : 2 KPIs + comparaison texte) */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Vos chiffres du mois</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  {/* Demandes reçues */}
+                  <div style={{ background: C.surface, borderRadius: 12, padding: "16px 16px", border: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Demandes reçues</div>
+                    <div style={{ fontSize: 28, fontWeight: 800 }}>{data.leads.thisMonth}</div>
+                    {data.leads.lastMonth > 0 && (
+                      <div style={{ fontSize: 12, color: data.leads.thisMonth >= data.leads.lastMonth ? C.green : C.red, display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
+                        {data.leads.thisMonth >= data.leads.lastMonth ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                        {data.leads.thisMonth >= data.leads.lastMonth ? "+" : ""}{data.leads.thisMonth - data.leads.lastMonth} vs mois dernier
                       </div>
                     )}
                   </div>
-                ))}
+                  {/* Clients gagnés */}
+                  <div style={{ background: C.surface, borderRadius: 12, padding: "16px 16px", border: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Clients gagnés</div>
+                    <div style={{ fontSize: 28, fontWeight: 800 }}>{data.leads.byStatus?.WON || 0}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>
+                      sur {data.leads.total} demande{data.leads.total !== 1 ? "s" : ""} au total
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Leads chart */}
-              {data.leadsChart && data.leadsChart.length > 0 && (
-                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "16px 16px 8px", marginBottom: 16 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 12 }}>Évolution des leads</div>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <AreaChart data={data.leadsChart}>
-                      <defs>
-                        <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={C.accent} stopOpacity={0.3} />
-                          <stop offset="95%" stopColor={C.accent} stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorWon" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={C.green} stopOpacity={0.3} />
-                          <stop offset="95%" stopColor={C.green} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                      <YAxis hide />
-                      <Tooltip
-                        contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: "'Bricolage Grotesque', sans-serif" }}
-                        formatter={(val: number, name: string) => [val, name === "leads" ? "Leads" : "Gagnés"]}
-                      />
-                      <Area type="monotone" dataKey="leads" stroke={C.accent} fill="url(#colorLeads)" strokeWidth={2} />
-                      <Area type="monotone" dataKey="won" stroke={C.green} fill="url(#colorWon)" strokeWidth={2} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+              {/* ZONE 3 — Ce que vos assistants ont fait (fil d'activité narratif) */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Ce que vos assistants ont fait</div>
+                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                  {(!agents?.recentTasks || agents.recentTasks.length === 0) && (!agents?.activity || agents.activity.length === 0) ? (
+                    /* Empty state humanisé */
+                    <div style={{ padding: "32px 20px", textAlign: "center" }}>
+                      <div style={{ fontSize: 36, marginBottom: 12 }}>✨</div>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Vos assistants sont prêts</div>
+                      <div style={{ fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 1.5 }}>Lancez votre première action pour les mettre au travail.</div>
+                      <button onClick={() => setPage("actions")} style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "12px 20px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Bricolage Grotesque', sans-serif", minHeight: 48 }}>
+                        Voir les actions disponibles
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Agent tasks as narrative */}
+                      {(agents?.recentTasks || []).slice(0, 5).map((task: any) => {
+                        const statusInfo = TASK_STATUS_LABELS[task.status] || { label: task.status, color: C.muted, icon: "❓" };
+                        const assistantInfo = ASSISTANT_LABELS[task.agentType] || { label: task.agentType, emoji: "🤖" };
+                        const isAuto = !task.triggeredBy; // If not triggered by user, it's automatic
+                        const sourceTag = isAuto ? "🤖 Automatique" : "👆 À votre demande";
+                        return (
+                          <div key={task.id} style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, minHeight: 48, cursor: "pointer" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
+                                  {statusInfo.icon} {assistantInfo.label} — {TASK_LABELS[task.taskType] || task.taskType.replace(/[._]/g, " ")}
+                                </div>
+                                <div style={{ fontSize: 12, color: C.muted }}>
+                                  {sourceTag} · {fmtRelative(task.createdAt)}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 11, background: `${statusInfo.color}15`, color: statusInfo.color, padding: "4px 10px", borderRadius: 6, fontWeight: 600, whiteSpace: "nowrap" }}>
+                                {statusInfo.label}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Recent leads as narrative */}
+                      {(agents?.activity || []).slice(0, 3).map((lead: any) => (
+                        <div key={lead.id} style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, minHeight: 48 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
+                                📨 Nouvelle demande de {lead.name}
+                              </div>
+                              <div style={{ fontSize: 12, color: C.muted }}>
+                                {SOURCE_LABELS[lead.source] || lead.source} · {fmtRelative(lead.createdAt)}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 11, background: `${(STATUS_LABELS[lead.status]?.color || C.muted)}15`, color: STATUS_LABELS[lead.status]?.color || C.muted, padding: "4px 10px", borderRadius: 6, fontWeight: 600, whiteSpace: "nowrap" }}>
+                              {STATUS_LABELS[lead.status]?.label || lead.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
 
-              {/* Lead status breakdown */}
+              {/* Suivi des demandes (ex pipeline) — simplifié */}
               {Object.keys(data.leads.byStatus).length > 0 && (
-                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16, marginBottom: 16 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 12 }}>Pipeline leads</div>
+                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 12 }}>Suivi des demandes</div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {Object.entries(data.leads.byStatus).map(([status, count]) => {
                       const total = data.leads.total || 1;
                       const pct = Math.round((count / total) * 100);
                       return (
-                        <div key={status} style={{ flex: pct, minWidth: 30 }}>
+                        <div key={status} style={{ flex: Math.max(pct, 5), minWidth: 36 }}>
                           <div style={{ height: 8, borderRadius: 4, background: STATUS_LABELS[status]?.color || C.muted, marginBottom: 6 }} />
-                          <div style={{ fontSize: 10, color: C.muted, textAlign: "center" }}>{STATUS_LABELS[status]?.label}</div>
-                          <div style={{ fontSize: 12, fontWeight: 700, textAlign: "center" }}>{count}</div>
+                          <div style={{ fontSize: 10, color: C.muted, textAlign: "center" }}>{STATUS_LABELS[status]?.label?.split(" ").pop()}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, textAlign: "center" }}>{count}</div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
               )}
-
-              {/* Leads récents */}
-              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700 }}>Derniers leads</div>
-                {!agents?.activity?.length ? (
-                  <div style={{ padding: 24, textAlign: "center", color: C.muted, fontSize: 13 }}>Aucun lead pour le moment</div>
-                ) : (
-                  agents.activity.slice(0, 5).map((lead: any) => (
-                    <div key={lead.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{lead.name}</div>
-                        <div style={{ fontSize: 12, color: C.muted }}>{lead.type} &middot; {SOURCE_LABELS[lead.source] || lead.source}</div>
-                      </div>
-                      <span style={{ fontSize: 11, background: `${(STATUS_LABELS[lead.status]?.color || C.muted)}15`, color: STATUS_LABELS[lead.status]?.color || C.muted, padding: "3px 8px", borderRadius: 6, fontWeight: 600 }}>
-                        {STATUS_LABELS[lead.status]?.label || lead.status}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
             </>
           )}
 
-          {/* ═══ FACTURES ═══ */}
-          {page === "factures" && (
+          {/* ═══════════════════════════════════════════════════════
+              ACTIONS — Regroupées par besoin métier
+              ═══════════════════════════════════════════════════════ */}
+          {page === "actions" && (
             <>
-              <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, marginTop: 0 }}>Factures & Abonnement</h2>
+              <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>Que voulez-vous faire ?</h2>
+              <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Vos assistants IA sont prêts à agir</p>
 
-              {/* Abonnement actuel */}
-              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "16px 20px", marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: "uppercase" }}>Plan actuel</div>
-                    <div style={{ fontSize: 20, fontWeight: 800 }}>{PLAN_LABELS[plan]} &mdash; {PLAN_PRICES[plan]}€/mois</div>
+              {/* Success/Error banner */}
+              {taskResult && (
+                <div style={{ background: taskResult.id ? `${C.green}12` : `${C.red}12`, border: `1px solid ${taskResult.id ? C.green : C.red}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 48 }}>
+                  <div style={{ fontSize: 13, color: taskResult.id ? C.green : C.red, fontWeight: 600 }}>
+                    {taskResult.id ? "✅ Action lancée avec succès" : taskResult.status}
                   </div>
-                  <CreditCard size={20} color={C.accent} />
+                  <button onClick={() => setTaskResult(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 8, minWidth: 48, minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
                 </div>
-                {data?.subscription && (
-                  <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>
-                    Renouvellement le {fmtDate(data.subscription.currentPeriodEnd)}
-                    {data.subscription.cancelAtPeriodEnd && (
-                      <span style={{ color: C.red, fontWeight: 600 }}> (annulation prévue)</span>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
 
-              {/* Liste des factures */}
-              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700 }}>Historique</div>
-                {allInvoices.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: C.muted, fontSize: 13 }}>Aucune facture pour le moment</div>
-                ) : (
-                  allInvoices.map((inv: any) => (
-                    <div key={inv.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{inv.number}</div>
-                        <div style={{ fontSize: 12, color: C.muted }}>{fmtDate(inv.createdAt)}</div>
+              {/* Tool categories by business need */}
+              {TOOL_CATEGORIES.map(cat => {
+                // Check if any tool in the category is accessible
+                const accessibleTools = cat.tools.filter(t => allowed.includes(t.agentType));
+                const lockedTools = cat.tools.filter(t => !allowed.includes(t.agentType));
+                const isExpanded = expandedCategory === cat.id;
+
+                return (
+                  <div key={cat.id} style={{ marginBottom: 14 }}>
+                    <button
+                      onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
+                      style={{ width: "100%", background: C.surface, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", fontFamily: "'Bricolage Grotesque', sans-serif", minHeight: 56 }}
+                    >
+                      <span style={{ fontSize: 24 }}>{cat.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{cat.label}</div>
+                        <div style={{ fontSize: 12, color: C.muted }}>{cat.desc}</div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontWeight: 700 }}>{(inv.amount / 100).toFixed(2)}€</span>
-                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, fontWeight: 600, background: inv.status === "PAID" ? `${C.green}15` : `${C.red}15`, color: inv.status === "PAID" ? C.green : C.red }}>
-                          {inv.status === "PAID" ? "Payée" : inv.status === "PENDING" ? "En attente" : inv.status}
-                        </span>
-                        {inv.stripePaymentUrl && inv.status !== "PAID" && (
-                          <a href={inv.stripePaymentUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.accent, fontSize: 12, textDecoration: "none", fontWeight: 600 }}>Payer</a>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{accessibleTools.length} action{accessibleTools.length > 1 ? "s" : ""}</span>
+                        {isExpanded ? <ChevronUp size={16} color={C.muted} /> : <ChevronDown size={16} color={C.muted} />}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6, paddingLeft: 8 }}>
+                        {accessibleTools.map(tool => (
+                          <button
+                            key={tool.taskType}
+                            onClick={() => {
+                              if (tool.fields && tool.fields.length > 0) {
+                                setSelectedTool(tool);
+                                setToolFormData({});
+                                setTaskResult(null);
+                              } else {
+                                handleToolSubmit(tool);
+                              }
+                            }}
+                            disabled={submitting}
+                            style={{ background: C.surface, borderRadius: 10, padding: "12px 14px", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "'Bricolage Grotesque', sans-serif", opacity: submitting ? 0.6 : 1, minHeight: 48 }}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${ASSISTANT_LABELS[tool.agentType]?.color || C.dark}12`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <tool.icon size={15} color={ASSISTANT_LABELS[tool.agentType]?.color || C.dark} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: 13 }}>{tool.label}</div>
+                              <div style={{ fontSize: 11, color: C.muted }}>{tool.desc}</div>
+                            </div>
+                            {tool.fields && tool.fields.length > 0 ? (
+                              <ChevronRight size={16} color={C.muted} />
+                            ) : (
+                              <Play size={14} color={ASSISTANT_LABELS[tool.agentType]?.color || C.dark} />
+                            )}
+                          </button>
+                        ))}
+
+                        {lockedTools.length > 0 && (
+                          <div style={{ background: `${C.muted}08`, borderRadius: 10, border: `1px dashed ${C.border}`, padding: "10px 14px", fontSize: 12, color: C.muted }}>
+                            +{lockedTools.length} action{lockedTools.length > 1 ? "s" : ""} disponible{lockedTools.length > 1 ? "s" : ""} avec un plan supérieur ·{" "}
+                            <span style={{ color: C.accent, fontWeight: 600, cursor: "pointer" }} onClick={() => setPage("compte")}>Voir les plans</span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* ─── JOURNAL D'ACTIVITÉ (ex historique des tâches) ─── */}
+              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginTop: 8 }}>
+                <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Journal d&apos;activité</span>
+                  <button onClick={() => { setHistoryLoading(true); fetch("/api/client/agents/tasks?limit=20").then(r => r.ok ? r.json() : { tasks: [] }).then(d => { setToolsHistory(d.tasks || []); setHistoryLoading(false); }).catch(() => setHistoryLoading(false)); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, minWidth: 48, minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <RefreshCw size={14} color={C.muted} />
+                  </button>
+                </div>
+                {historyLoading ? (
+                  <div style={{ padding: 24, textAlign: "center" }}><Loader2 size={18} color={C.muted} /></div>
+                ) : toolsHistory.length === 0 ? (
+                  /* Empty state humanisé */
+                  <div style={{ padding: "28px 20px", textAlign: "center" }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+                    <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>Aucune action pour le moment.<br />Lancez votre première action ci-dessus !</div>
+                  </div>
+                ) : (
+                  toolsHistory.map((task: any) => {
+                    const statusInfo = TASK_STATUS_LABELS[task.status] || { label: task.status, color: C.muted, icon: "❓" };
+                    const assistantInfo = ASSISTANT_LABELS[task.agentType];
+                    const isAuto = !task.triggeredBy;
+                    return (
+                      <div key={task.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 48 }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>
+                            {statusInfo.icon} {TASK_LABELS[task.taskType] || task.taskType.replace(/[._]/g, " ")}
+                          </div>
+                          <div style={{ fontSize: 11, color: C.muted }}>
+                            {assistantInfo?.label || task.agentType} · {isAuto ? "🤖 Auto" : "👆 Vous"} · {fmtRelative(task.createdAt)}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, background: `${statusInfo.color}15`, color: statusInfo.color, padding: "4px 10px", borderRadius: 6, fontWeight: 600 }}>
+                          {statusInfo.label}
+                        </span>
+                      </div>
+                    );
+                  })
                 )}
               </div>
+
+              {/* ─── TOOL FORM MODAL ─── */}
+              {selectedTool && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={(e) => { if (e.target === e.currentTarget) { setSelectedTool(null); setToolFormData({}); } }}>
+                  <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "80vh", overflow: "auto", padding: "20px 16px calc(20px + env(safe-area-inset-bottom))" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 9, background: `${ASSISTANT_LABELS[selectedTool.agentType]?.color || C.dark}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <selectedTool.icon size={16} color={ASSISTANT_LABELS[selectedTool.agentType]?.color || C.dark} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 15 }}>{selectedTool.label}</div>
+                          <div style={{ fontSize: 11, color: C.muted }}>{selectedTool.desc}</div>
+                        </div>
+                      </div>
+                      <button onClick={() => { setSelectedTool(null); setToolFormData({}); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, minWidth: 48, minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={18} color={C.muted} /></button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+                      {(selectedTool.fields || []).map(field => (
+                        <div key={field.key}>
+                          <label style={{ fontSize: 12, fontWeight: 600, color: C.dark, display: "block", marginBottom: 4 }}>{field.label}</label>
+                          {field.options ? (
+                            <select
+                              value={toolFormData[field.key] || ""}
+                              onChange={(e) => setToolFormData({ ...toolFormData, [field.key]: e.target.value })}
+                              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 14, fontFamily: "'Bricolage Grotesque', sans-serif", color: C.dark, appearance: "none", minHeight: 48 }}
+                            >
+                              <option value="">Choisir...</option>
+                              {field.options.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type={field.type || "text"}
+                              placeholder={field.placeholder}
+                              value={toolFormData[field.key] || ""}
+                              onChange={(e) => setToolFormData({ ...toolFormData, [field.key]: e.target.value })}
+                              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 14, fontFamily: "'Bricolage Grotesque', sans-serif", color: C.dark, boxSizing: "border-box", minHeight: 48 }}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => handleToolSubmit(selectedTool)}
+                      disabled={submitting}
+                      style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: 14, cursor: submitting ? "wait" : "pointer", fontFamily: "'Bricolage Grotesque', sans-serif", opacity: submitting ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48 }}
+                    >
+                      {submitting ? <Loader2 size={16} /> : <Play size={16} />}
+                      {submitting ? "Envoi en cours..." : "Lancer l'action"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
-          {/* ═══ PROFIL ═══ */}
-          {page === "profil" && profile && (
+          {/* ═══════════════════════════════════════════════════════
+              MON COMPTE — Profil + Abonnement + Mes assistants
+              ═══════════════════════════════════════════════════════ */}
+          {page === "compte" && profile && (
             <>
+              {/* ── Profil ── */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Mon profil</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Mon compte</h2>
                 {!editing ? (
-                  <button onClick={() => { setEditing(true); setEditData(profile); }} style={{ display: "flex", alignItems: "center", gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", color: C.dark }}>
+                  <button onClick={() => { setEditing(true); setEditData(profile); }} style={{ display: "flex", alignItems: "center", gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", color: C.dark, minHeight: 48 }}>
                     <Edit size={14} /> Modifier
                   </button>
                 ) : (
-                  <button onClick={handleSaveProfile} disabled={saving} style={{ display: "flex", alignItems: "center", gap: 6, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#fff" }}>
+                  <button onClick={handleSaveProfile} disabled={saving} style={{ display: "flex", alignItems: "center", gap: 6, background: C.accent, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#fff", minHeight: 48 }}>
                     <Save size={14} /> {saving ? "..." : "Enregistrer"}
                   </button>
                 )}
               </div>
 
-              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
                 {[
                   { label: "Prénom", key: "firstName" },
                   { label: "Nom", key: "lastName" },
@@ -549,13 +773,13 @@ export default function ClientDashboard() {
                   { label: "Adresse", key: "adresse" },
                   { label: "Google Business", key: "googleBusinessUrl" },
                 ].map((field) => (
-                  <div key={field.key} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div key={field.key} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 48 }}>
                     <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, minWidth: 100 }}>{field.label}</div>
                     {editing && !field.readonly ? (
                       <input
                         value={editData[field.key] || ""}
                         onChange={(e) => setEditData({ ...editData, [field.key]: e.target.value })}
-                        style={{ flex: 1, textAlign: "right", border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px", fontSize: 13, fontFamily: "'Bricolage Grotesque', sans-serif", outline: "none", background: C.bg }}
+                        style={{ flex: 1, textAlign: "right", border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 13, fontFamily: "'Bricolage Grotesque', sans-serif", outline: "none", background: C.bg, minHeight: 36 }}
                       />
                     ) : (
                       <div style={{ fontWeight: 500, fontSize: 13 }}>{profile[field.key] || "—"}</div>
@@ -564,18 +788,18 @@ export default function ClientDashboard() {
                 ))}
               </div>
 
-              {/* ── Abonnement ── */}
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginTop: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+              {/* ── Abonnement (déplacé ici depuis le dashboard) ── */}
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
                 <CreditCard size={16} /> Abonnement
               </h3>
-              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
                 <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Plan actuel</div>
                     <div style={{ fontWeight: 700, fontSize: 18, marginTop: 2 }}>{PLAN_LABELS[plan]} — {PLAN_PRICES[plan]}€/mois</div>
                   </div>
                   {data?.subscription && (
-                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 600, background: `${(SUB_STATUS_MAP[data.subscription.status]?.color || C.muted)}30`, color: SUB_STATUS_MAP[data.subscription.status]?.color || C.muted }}>
+                    <span style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, fontWeight: 600, background: `${(SUB_STATUS_MAP[data.subscription.status]?.color || C.muted)}30`, color: SUB_STATUS_MAP[data.subscription.status]?.color || C.muted }}>
                       {SUB_STATUS_MAP[data.subscription.status]?.label || data.subscription.status}
                     </span>
                   )}
@@ -594,13 +818,6 @@ export default function ClientDashboard() {
                   </div>
                 )}
 
-                {client?.status === "TRIAL" && client?.trialEndsAt && (
-                  <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: C.blue }}>
-                    <Clock size={14} />
-                    <span style={{ fontWeight: 600 }}>Essai gratuit jusqu&apos;au {fmtDate(client.trialEndsAt)}</span>
-                  </div>
-                )}
-
                 {data?.upcomingInvoice && (
                   <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.dark }}>
                     <CreditCard size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />
@@ -613,26 +830,23 @@ export default function ClientDashboard() {
                   <button
                     onClick={openBillingPortal}
                     disabled={billingLoading}
-                    style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "none", background: C.dark, color: "#fff", fontWeight: 700, fontSize: 14, cursor: billingLoading ? "not-allowed" : "pointer", fontFamily: "'Bricolage Grotesque', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: billingLoading ? 0.6 : 1 }}
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "none", background: C.dark, color: "#fff", fontWeight: 700, fontSize: 14, cursor: billingLoading ? "not-allowed" : "pointer", fontFamily: "'Bricolage Grotesque', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: billingLoading ? 0.6 : 1, minHeight: 48 }}
                   >
-                    {billingLoading ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                    {billingLoading ? <Loader2 size={16} /> : <CreditCard size={16} />}
                     {billingLoading ? "Redirection..." : "Gérer mon abonnement"}
                   </button>
-                  <p style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 8, marginBottom: 0 }}>
-                    Modifier le plan, mettre à jour la CB, télécharger les factures
-                  </p>
                 </div>
               </div>
 
               {/* ── Dernières factures ── */}
               {allInvoices.length > 0 && (
                 <>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, marginTop: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
                     <FileText size={16} /> Dernières factures
                   </h3>
-                  <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                  <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
                     {allInvoices.slice(0, 5).map((inv: any, i: number) => (
-                      <div key={inv.id} style={{ padding: "12px 16px", borderBottom: i < Math.min(allInvoices.length, 5) - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div key={inv.id} style={{ padding: "12px 16px", borderBottom: i < Math.min(allInvoices.length, 5) - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 48 }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{inv.number}</div>
                           <div style={{ fontSize: 11, color: C.muted }}>{fmtDate(inv.createdAt)}</div>
@@ -640,7 +854,7 @@ export default function ClientDashboard() {
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontWeight: 700, fontSize: 14 }}>{(inv.amount / 100).toFixed(2)}€</span>
                           {inv.stripePaymentUrl && (
-                            <a href={inv.stripePaymentUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.accent, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
+                            <a href={inv.stripePaymentUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.accent, fontSize: 12, fontWeight: 600, textDecoration: "none", padding: "6px 10px", minHeight: 48, display: "inline-flex", alignItems: "center" }}>
                               PDF ↗
                             </a>
                           )}
@@ -650,316 +864,151 @@ export default function ClientDashboard() {
                   </div>
                 </>
               )}
-            </>
-          )}
 
-          {/* ═══ OUTILS AGENTS ═══ */}
-          {page === "outils" && (
-            <>
-              <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>Outils agents</h2>
-              <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Lancez des actions via vos agents IA</p>
+              {/* ── Mes assistants (fiches agents complètes) ── */}
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <Zap size={16} /> Mes assistants
+              </h3>
 
-              {/* Success/Error banner */}
-              {taskResult && (
-                <div style={{ background: taskResult.id ? `${C.green}12` : `${C.red}12`, border: `1px solid ${taskResult.id ? C.green : C.red}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 13, color: taskResult.id ? C.green : C.red, fontWeight: 600 }}>
-                    {taskResult.id ? `Tâche soumise (#${taskResult.id.slice(0, 8)})` : taskResult.status}
-                  </div>
-                  <button onClick={() => setTaskResult(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 2 }}><X size={14} /></button>
-                </div>
-              )}
-
-              {/* Tool cards grouped by agent type */}
-              {(["ADMIN", "MARKETING", "COMMERCIAL"] as const).map(agentType => {
-                const allowed = PLAN_AGENT_ACCESS[plan] || PLAN_AGENT_ACCESS.ESSENTIEL;
-                if (!allowed.includes(agentType)) return null;
-                const tools = AGENT_TOOLS.filter(t => t.agentType === agentType);
-                if (tools.length === 0) return null;
-                const color = AGENT_TYPE_COLORS[agentType] || C.dark;
-                return (
-                  <div key={agentType} style={{ marginBottom: 18 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 4, background: color }} />
-                      <span style={{ fontSize: 13, fontWeight: 700, color }}>{AGENT_TYPE_LABELS[agentType] || agentType}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {tools.map(tool => (
-                        <button
-                          key={tool.taskType}
-                          onClick={() => {
-                            if (tool.fields && tool.fields.length > 0) {
-                              setSelectedTool(tool);
-                              setToolFormData({});
-                              setTaskResult(null);
-                            } else {
-                              handleToolSubmit(tool);
-                            }
-                          }}
-                          disabled={submitting}
-                          style={{ background: C.surface, borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "'Bricolage Grotesque', sans-serif", opacity: submitting ? 0.6 : 1 }}
-                        >
-                          <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}12`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <tool.icon size={16} color={color} />
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13 }}>{tool.label}</div>
-                            <div style={{ fontSize: 11, color: C.muted }}>{tool.desc}</div>
-                          </div>
-                          {tool.fields && tool.fields.length > 0 ? (
-                            <ChevronRight size={16} color={C.muted} />
-                          ) : (
-                            <Play size={14} color={color} />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Locked agents upsell */}
-              {(() => {
-                const allowed = PLAN_AGENT_ACCESS[plan] || PLAN_AGENT_ACCESS.ESSENTIEL;
-                const locked = (["ADMIN", "MARKETING", "COMMERCIAL"] as const).filter(a => !allowed.includes(a));
-                if (locked.length === 0) return null;
-                return (
-                  <div style={{ background: `${C.muted}08`, borderRadius: 12, border: `1px dashed ${C.border}`, padding: "14px 16px", marginBottom: 18 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Débloquez plus d'outils</div>
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
-                      Les agents {locked.map(a => AGENT_TYPE_LABELS[a]).join(" et ")} sont disponibles avec un plan supérieur.
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, cursor: "pointer" }} onClick={() => setPage("profil")}>
-                      Voir les plans →
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Recent tasks history */}
-              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>Historique des tâches</span>
-                  <button onClick={() => { setHistoryLoading(true); fetch("/api/client/agents/tasks?limit=20").then(r => r.ok ? r.json() : { tasks: [] }).then(d => { setToolsHistory(d.tasks || []); setHistoryLoading(false); }).catch(() => setHistoryLoading(false)); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                    <RefreshCw size={14} color={C.muted} className={historyLoading ? "spin" : ""} />
-                  </button>
-                </div>
-                {historyLoading ? (
-                  <div style={{ padding: 24, textAlign: "center" }}><Loader2 size={18} color={C.muted} /></div>
-                ) : toolsHistory.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: C.muted, fontSize: 13 }}>Aucune tâche pour le moment</div>
-                ) : (
-                  toolsHistory.map((task: any) => (
-                    <div key={task.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{AGENT_TOOLS.find(t => t.taskType === task.taskType)?.label || task.taskType}</div>
-                        <div style={{ fontSize: 11, color: C.muted }}>
-                          {AGENT_TYPE_LABELS[task.agentType] || task.agentType} &middot; {fmtDate(task.createdAt)}
-                        </div>
-                      </div>
-                      <span style={{ fontSize: 11, background: `${(TASK_STATUS_LABELS[task.status]?.color || C.muted)}15`, color: TASK_STATUS_LABELS[task.status]?.color || C.muted, padding: "3px 8px", borderRadius: 6, fontWeight: 600 }}>
-                        {TASK_STATUS_LABELS[task.status]?.label || task.status}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* ─── TOOL FORM MODAL ─── */}
-              {selectedTool && (
-                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={(e) => { if (e.target === e.currentTarget) { setSelectedTool(null); setToolFormData({}); } }}>
-                  <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "80vh", overflow: "auto", padding: "20px 16px calc(20px + env(safe-area-inset-bottom))" }}>
-                    {/* Modal header */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 9, background: `${AGENT_TYPE_COLORS[selectedTool.agentType]}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <selectedTool.icon size={16} color={AGENT_TYPE_COLORS[selectedTool.agentType]} />
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 15 }}>{selectedTool.label}</div>
-                          <div style={{ fontSize: 11, color: C.muted }}>{selectedTool.desc}</div>
-                        </div>
-                      </div>
-                      <button onClick={() => { setSelectedTool(null); setToolFormData({}); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={C.muted} /></button>
-                    </div>
-
-                    {/* Form fields */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-                      {(selectedTool.fields || []).map(field => (
-                        <div key={field.key}>
-                          <label style={{ fontSize: 12, fontWeight: 600, color: C.dark, display: "block", marginBottom: 4 }}>{field.label}</label>
-                          {field.options ? (
-                            <select
-                              value={toolFormData[field.key] || ""}
-                              onChange={(e) => setToolFormData({ ...toolFormData, [field.key]: e.target.value })}
-                              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 13, fontFamily: "'Bricolage Grotesque', sans-serif", color: C.dark, appearance: "none" }}
-                            >
-                              <option value="">Choisir...</option>
-                              {field.options.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input
-                              type={field.type || "text"}
-                              placeholder={field.placeholder}
-                              value={toolFormData[field.key] || ""}
-                              onChange={(e) => setToolFormData({ ...toolFormData, [field.key]: e.target.value })}
-                              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 13, fontFamily: "'Bricolage Grotesque', sans-serif", color: C.dark, boxSizing: "border-box" }}
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Submit button */}
-                    <button
-                      onClick={() => handleToolSubmit(selectedTool)}
-                      disabled={submitting}
-                      style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: 14, cursor: submitting ? "wait" : "pointer", fontFamily: "'Bricolage Grotesque', sans-serif", opacity: submitting ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                    >
-                      {submitting ? <Loader2 size={16} /> : <Play size={16} />}
-                      {submitting ? "Envoi en cours..." : "Lancer la tâche"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ═══ AGENTS ═══ */}
-          {page === "agents" && agents && (
-            <>
-              <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, marginTop: 0 }}>Vos agents IA</h2>
-
-              {/* Agents actifs — cards enrichies */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-                {agents.agents.map((agent, i) => (
-                  <div key={i} style={{ background: C.surface, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: agent.type === "COMMERCIAL" ? `${C.accent}15` : `${C.green}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Bot size={18} color={agent.type === "COMMERCIAL" ? C.accent : C.green} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{agent.name}</div>
-                      <div style={{ fontSize: 11, color: C.muted }}>{agent.desc}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 4, background: C.green }} />
-                      <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>Actif</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                {(["ADMIN", "MARKETING", "COMMERCIAL"] as const).map(agentType => {
+                  if (!allowed.includes(agentType)) return null;
+                  const info = ASSISTANT_LABELS[agentType];
+                  const agent = agents?.agents?.find(a => a.type === agentType);
+                  const isSelected = selectedAgent === agentType;
+                  const agentTasks = (agents?.recentTasks || []).filter((t: any) => t.agentType === agentType);
+                  const agentTools = ALL_TOOLS.filter(t => t.agentType === agentType);
+                  const level = autonomyLevels[agentType] || "assisted";
+                  const levelInfo = AUTONOMY_LEVELS.find(l => l.id === level) || AUTONOMY_LEVELS[0];
 
-              {/* Agent task stats */}
-              {agents.agentTaskStats.total > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
-                  {[
-                    { label: "Total", value: agents.agentTaskStats.total, icon: Activity, color: C.dark },
-                    { label: "Terminé", value: agents.agentTaskStats.completed, icon: CheckCircle, color: C.green },
-                    { label: "En cours", value: agents.agentTaskStats.pending, icon: Zap, color: C.blue },
-                    { label: "Échoué", value: agents.agentTaskStats.failed, icon: AlertTriangle, color: C.red },
-                  ].map((s, i) => (
-                    <div key={i} style={{ background: C.surface, borderRadius: 10, padding: "10px 8px", border: `1px solid ${C.border}`, textAlign: "center" }}>
-                      <s.icon size={14} color={s.color} style={{ marginBottom: 4 }} />
-                      <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
-                      <div style={{ fontSize: 10, color: C.muted }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                  return (
+                    <div key={agentType}>
+                      {/* Agent card */}
+                      <button
+                        onClick={() => setSelectedAgent(isSelected ? null : agentType)}
+                        style={{ width: "100%", background: C.surface, borderRadius: isSelected ? "12px 12px 0 0" : 12, padding: "14px 16px", border: `1px solid ${isSelected ? info.color + "40" : C.border}`, borderBottom: isSelected ? "none" : `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", fontFamily: "'Bricolage Grotesque', sans-serif", minHeight: 56 }}
+                      >
+                        <span style={{ fontSize: 24 }}>{info.emoji}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{info.label}</div>
+                          <div style={{ fontSize: 12, color: C.muted }}>{info.desc}</div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 4, background: C.green }} />
+                          <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>En service</span>
+                          {isSelected ? <ChevronUp size={14} color={C.muted} /> : <ChevronDown size={14} color={C.muted} />}
+                        </div>
+                      </button>
 
-              {/* Leads stats */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-                <div style={{ background: C.surface, borderRadius: 12, padding: "14px 12px", border: `1px solid ${C.border}`, textAlign: "center" }}>
-                  <div style={{ fontSize: 20, fontWeight: 800 }}>{agents.stats.totalLeads}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>Leads total</div>
-                </div>
-                <div style={{ background: C.surface, borderRadius: 12, padding: "14px 12px", border: `1px solid ${C.border}`, textAlign: "center" }}>
-                  <div style={{ fontSize: 20, fontWeight: 800 }}>{agents.stats.googleRating || "—"}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>Note Google</div>
-                </div>
-                <div style={{ background: C.surface, borderRadius: 12, padding: "14px 12px", border: `1px solid ${C.border}`, textAlign: "center" }}>
-                  <div style={{ fontSize: 20, fontWeight: 800 }}>{agents.stats.avisCount}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>Avis</div>
-                </div>
-              </div>
+                      {/* Expanded agent fiche */}
+                      {isSelected && (
+                        <div style={{ background: C.surface, borderRadius: "0 0 12px 12px", border: `1px solid ${info.color}40`, borderTop: "none", overflow: "hidden" }}>
 
-              {/* Sources breakdown */}
-              {Object.keys(agents.stats.bySource).length > 0 && (
-                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 16 }}>
-                  <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700 }}>Sources de leads</div>
-                  {Object.entries(agents.stats.bySource).map(([source, count]) => {
-                    const total = agents.stats.totalLeads || 1;
-                    const pct = Math.round((count / total) * 100);
-                    return (
-                      <div key={source} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 13 }}>{SOURCE_LABELS[source] || source}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ width: 60, height: 6, borderRadius: 3, background: C.border, overflow: "hidden" }}>
-                            <div style={{ width: `${pct}%`, height: "100%", borderRadius: 3, background: C.accent }} />
+                          {/* Autonomy level */}
+                          <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10, color: C.muted }}>Quel niveau de liberté ?</div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              {AUTONOMY_LEVELS.map(lvl => (
+                                <button
+                                  key={lvl.id}
+                                  onClick={() => setAutonomyLevels(prev => ({ ...prev, [agentType]: lvl.id }))}
+                                  style={{
+                                    flex: 1,
+                                    padding: "10px 6px",
+                                    borderRadius: 10,
+                                    border: `2px solid ${level === lvl.id ? lvl.color : C.border}`,
+                                    background: level === lvl.id ? `${lvl.color}10` : C.surface,
+                                    cursor: "pointer",
+                                    textAlign: "center",
+                                    fontFamily: "'Bricolage Grotesque', sans-serif",
+                                    minHeight: 48,
+                                  }}
+                                >
+                                  <lvl.icon size={16} color={level === lvl.id ? lvl.color : C.muted} style={{ marginBottom: 4 }} />
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: level === lvl.id ? lvl.color : C.dark }}>{lvl.label}</div>
+                                  <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{lvl.desc}</div>
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <span style={{ fontWeight: 700, fontSize: 13, minWidth: 24, textAlign: "right" }}>{count}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
-              {/* Tâches agents récentes */}
-              {agents.recentTasks && agents.recentTasks.length > 0 && (
-                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 16 }}>
-                  <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700 }}>Tâches agents récentes</div>
-                  {agents.recentTasks.map((task: any) => (
-                    <div key={task.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{task.taskType?.replace(/_/g, " ")}</div>
-                        <div style={{ fontSize: 11, color: C.muted }}>
-                          {AGENT_TYPE_LABELS[task.agentType] || task.agentType} &middot; {fmtDate(task.createdAt)}
-                        </div>
-                      </div>
-                      <span style={{ fontSize: 11, background: `${(TASK_STATUS_LABELS[task.status]?.color || C.muted)}15`, color: TASK_STATUS_LABELS[task.status]?.color || C.muted, padding: "3px 8px", borderRadius: 6, fontWeight: 600 }}>
-                        {TASK_STATUS_LABELS[task.status]?.label || task.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+                          {/* Agent tools */}
+                          <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.muted }}>Ce qu&apos;il sait faire</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {agentTools.map(tool => (
+                                <button
+                                  key={tool.taskType}
+                                  onClick={() => {
+                                    setPage("actions");
+                                    if (tool.fields && tool.fields.length > 0) {
+                                      setSelectedTool(tool);
+                                      setToolFormData({});
+                                    }
+                                  }}
+                                  style={{ background: `${info.color}08`, border: `1px solid ${info.color}20`, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Bricolage Grotesque', sans-serif", color: info.color, minHeight: 36 }}
+                                >
+                                  {tool.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
 
-              {/* Activité récente (leads) */}
-              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700 }}>Derniers leads</div>
-                {agents.activity.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: C.muted, fontSize: 13 }}>Aucune activité pour le moment</div>
-                ) : (
-                  agents.activity.slice(0, 10).map((item: any) => (
-                    <div key={item.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.name}</div>
-                        <div style={{ fontSize: 11, color: C.muted }}>
-                          {item.type} &middot; {SOURCE_LABELS[item.source] || item.source} &middot; {fmtDate(item.createdAt)}
+                          {/* Agent recent activity */}
+                          <div style={{ padding: "14px 16px" }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.muted }}>Ses dernières actions</div>
+                            {agentTasks.length === 0 ? (
+                              <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic" }}>Aucune action récente</div>
+                            ) : (
+                              agentTasks.slice(0, 3).map((task: any) => {
+                                const statusInfo = TASK_STATUS_LABELS[task.status] || { label: task.status, color: C.muted, icon: "❓" };
+                                return (
+                                  <div key={task.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", fontSize: 12 }}>
+                                    <span>{statusInfo.icon} {TASK_LABELS[task.taskType] || task.taskType} · {fmtRelative(task.createdAt)}</span>
+                                    <span style={{ color: statusInfo.color, fontWeight: 600 }}>{statusInfo.label}</span>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <span style={{ fontSize: 11, background: `${(STATUS_LABELS[item.status]?.color || C.muted)}15`, color: STATUS_LABELS[item.status]?.color || C.muted, padding: "3px 8px", borderRadius: 6, fontWeight: 600 }}>
-                        {STATUS_LABELS[item.status]?.label || item.status}
-                      </span>
+                      )}
                     </div>
-                  ))
-                )}
+                  );
+                })}
+
+                {/* Locked agents upsell */}
+                {(() => {
+                  const locked = (["ADMIN", "MARKETING", "COMMERCIAL"] as const).filter(a => !allowed.includes(a));
+                  if (locked.length === 0) return null;
+                  return (
+                    <div style={{ background: `${C.muted}08`, borderRadius: 12, border: `1px dashed ${C.border}`, padding: "14px 16px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Débloquez plus d&apos;assistants</div>
+                      <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+                        {locked.map(a => ASSISTANT_LABELS[a].label).join(" et ")} disponible{locked.length > 1 ? "s" : ""} avec un plan supérieur.
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, cursor: "pointer" }} onClick={openBillingPortal}>
+                        Voir les plans →
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </>
           )}
         </div>
       </div>
 
-      {/* ─── BOTTOM NAV ──────────────────────────────────────── */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 520, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-around", padding: "8px 0 calc(8px + env(safe-area-inset-bottom))", zIndex: 50 }}>
-        {navItems.map(item => (
-          (item as any).href ? (
+      {/* ─── BOTTOM NAV — 4 onglets rationalisés ──────────────────── */}
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 520, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-around", padding: "6px 0 calc(6px + env(safe-area-inset-bottom))", zIndex: 50 }}>
+        {navItems.map(item => {
+          const isActive = !("href" in item) && page === item.id;
+          const showBadge = item.id === "accueil" && alertCount > 0;
+          return "href" in item ? (
             <a
               key={item.id}
-              href={(item as any).href}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, textDecoration: "none", color: C.muted, padding: "4px 12px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif" }}
+              href={item.href}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, textDecoration: "none", color: C.muted, padding: "6px 16px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif", minWidth: 56, minHeight: 48, justifyContent: "center", position: "relative" }}
             >
               <item.icon size={20} />
               {item.label}
@@ -968,13 +1017,20 @@ export default function ClientDashboard() {
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: page === item.id ? C.accent : C.muted, padding: "4px 12px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif" }}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "none", border: "none", cursor: "pointer", color: isActive ? C.accent : C.muted, padding: "6px 16px", fontSize: 10, fontWeight: 600, fontFamily: "'Bricolage Grotesque', sans-serif", minWidth: 56, minHeight: 48, justifyContent: "center", position: "relative" }}
             >
-              <item.icon size={20} />
+              <div style={{ position: "relative" }}>
+                <item.icon size={20} />
+                {showBadge && (
+                  <div style={{ position: "absolute", top: -4, right: -8, background: C.red, color: "#fff", fontSize: 9, fontWeight: 800, width: 16, height: 16, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {alertCount}
+                  </div>
+                )}
+              </div>
               {item.label}
             </button>
-          )
-        ))}
+          );
+        })}
       </div>
     </div>
   );
