@@ -293,7 +293,7 @@ export default function ClientOnboardingPage() {
             </div>
           )}
 
-          {/* ── ÉTAPE 4 : Connecter Telegram ── */}
+          {/* ── ÉTAPE 4 : Connecter Telegram + WhatsApp ── */}
           {step === 4 && (
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: C.dark, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
@@ -301,9 +301,10 @@ export default function ClientOnboardingPage() {
                 Parlez à vos assistants
               </h2>
               <p style={{ color: C.muted, marginBottom: 20, fontSize: 14, lineHeight: 1.5 }}>
-                Connectez Telegram pour discuter avec eux depuis votre téléphone.
+                Connectez Telegram ou WhatsApp pour discuter avec eux depuis votre téléphone.
               </p>
 
+              {/* ── Telegram ── */}
               <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 20, marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                   <div style={{ fontSize: 32 }}>✈️</div>
@@ -327,7 +328,6 @@ export default function ClientOnboardingPage() {
                   <p style={{ fontSize: 13, color: C.dark, fontWeight: 600, marginTop: 10 }}>Scannez pour ouvrir Telegram</p>
                 </div>
 
-                <div style={{ fontSize: 13, color: C.muted, textAlign: "center", lineHeight: 1.7, marginBottom: 4 }}>ou ouvrez directement :</div>
                 <a
                   href={`https://t.me/iartisan_agent_bot?start=${clientId}`}
                   target="_blank" rel="noopener noreferrer"
@@ -340,21 +340,53 @@ export default function ClientOnboardingPage() {
                 >
                   <MessageCircle size={18} /> Ouvrir dans Telegram
                 </a>
+              </div>
+
+              {/* ── WhatsApp ── */}
+              <div style={{ background: "#f0faf0", borderRadius: 12, padding: 20, marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                  <div style={{ fontSize: 32 }}>💬</div>
+                  <div>
+                    <div style={{ fontWeight: 700, color: C.dark, fontSize: 15 }}>WhatsApp</div>
+                    <div style={{ fontSize: 12, color: C.green }}>Disponible !</div>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: "center", marginBottom: 16 }}>
+                  <div style={{ display: "inline-block", background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                    {clientId && (
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://wa.me/33176340256?text=link_${clientId}`)}&margin=0`}
+                        alt="QR Code WhatsApp"
+                        width={180} height={180}
+                        style={{ display: "block", borderRadius: 4 }}
+                      />
+                    )}
+                  </div>
+                  <p style={{ fontSize: 13, color: C.dark, fontWeight: 600, marginTop: 10 }}>Scannez pour ouvrir WhatsApp</p>
+                </div>
+
+                <a
+                  href={`https://wa.me/33176340256?text=link_${clientId}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    background: "#25D366", color: "#fff", padding: "14px 20px",
+                    borderRadius: 10, fontWeight: 600, textDecoration: "none", fontSize: 15,
+                    WebkitTapHighlightColor: "transparent", minHeight: 48,
+                  }}
+                >
+                  💬 Ouvrir dans WhatsApp
+                </a>
                 <p style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>
-                  Votre compte sera lié automatiquement.
-                  <br />Essayez : <em style={{ color: C.accent }}>&quot;Aide&quot;</em> ou <em style={{ color: C.accent }}>&quot;Fais-moi un devis&quot;</em>
+                  Envoyez le message pré-rempli pour lier votre compte.
+                  <br />Essayez ensuite : <em style={{ color: C.accent }}>&quot;Aide&quot;</em> ou <em style={{ color: C.accent }}>&quot;Fais-moi un devis&quot;</em>
                 </p>
               </div>
 
-              <div style={{ background: "#e8f5e9", borderRadius: 12, padding: 14, marginBottom: 14, opacity: 0.7 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 22 }}>💬</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>WhatsApp</div>
-                    <div style={{ fontSize: 11, color: C.muted }}>Bientôt disponible</div>
-                  </div>
-                </div>
-              </div>
+              <p style={{ fontSize: 12, color: C.muted, textAlign: "center", marginBottom: 14, lineHeight: 1.5 }}>
+                Vous pouvez connecter les deux canaux. Choisissez celui que vous préférez au quotidien.
+              </p>
 
               <div style={{ display: "flex", gap: 10 }}>
                 <BtnSecondary onClick={() => setStep(3)}>

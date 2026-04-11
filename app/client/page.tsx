@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Home, Zap, FileText, User, LogOut, TrendingUp, ArrowUpRight, ArrowDownRight, Phone, Clock, CheckCircle, Star, CreditCard, Edit, Save, Activity, AlertTriangle, CalendarDays, Play, Search, Mail, MessageSquare, Globe, BarChart3, FileEdit, Send, RefreshCw, Loader2, ChevronRight, X, Bell, Shield, ShieldCheck, Rocket, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Home, Zap, FileText, User, LogOut, TrendingUp, ArrowUpRight, ArrowDownRight, Phone, Clock, CheckCircle, Star, CreditCard, Edit, Save, Activity, AlertTriangle, CalendarDays, Play, Search, Mail, MessageSquare, Globe, BarChart3, FileEdit, Send, RefreshCw, Loader2, ChevronRight, X, Bell, Shield, ShieldCheck, Rocket, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Eye, Link2, Unlink, QrCode } from "lucide-react";
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
@@ -234,6 +234,12 @@ export default function ClientDashboard() {
   const [autonomyLevels, setAutonomyLevels] = useState<Record<string, string>>({
     ADMIN: "assisted", MARKETING: "assisted", COMMERCIAL: "assisted",
   });
+  // Channel links state
+  const [channels, setChannels] = useState<{ channel: string; channel_user_id: string; display_name: string | null; is_active: boolean; linked_at: string }[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [showWhatsAppQR, setShowWhatsAppQR] = useState(false);
+  const [showTelegramQR, setShowTelegramQR] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -241,12 +247,14 @@ export default function ClientDashboard() {
       fetch("/api/client/agents").then(r => r.ok ? r.json() : null),
       fetch("/api/client/invoices").then(r => r.ok ? r.json() : { invoices: [] }),
       fetch("/api/client/profile").then(r => r.ok ? r.json() : null),
-    ]).then(([d, a, inv, p]) => {
+      fetch("/api/client/channels").then(r => r.ok ? r.json() : { channels: [] }),
+    ]).then(([d, a, inv, p, ch]) => {
       setData(d);
       setAgents(a);
       setAllInvoices(inv.invoices || []);
       setProfile(p);
       if (p) setEditData(p);
+      setChannels(ch.channels || []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -859,6 +867,141 @@ export default function ClientDashboard() {
                   </div>
                 </>
               )}
+
+              {/* ── Canaux connectés ── */}
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <MessageSquare size={16} /> Canaux de communication
+              </h3>
+
+              <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
+                {/* Telegram */}
+                {(() => {
+                  const tg = channels.find(c => c.channel === "telegram");
+                  return (
+                    <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: tg ? "#0088cc20" : `${C.muted}10`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Send size={18} color={tg ? "#0088cc" : C.muted} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.dark }}>Telegram</div>
+                        {tg ? (
+                          <div style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Connecté {tg.display_name ? `(${tg.display_name})` : ""}</div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: C.muted }}>Non connecté</div>
+                        )}
+                      </div>
+                      {tg ? (
+                        <button
+                          onClick={async () => {
+                            setDisconnecting("telegram");
+                            try {
+                              const res = await fetch("/api/client/channels", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel: "telegram" }) });
+                              if (res.ok) setChannels(prev => prev.filter(c => c.channel !== "telegram"));
+                            } finally { setDisconnecting(null); }
+                          }}
+                          disabled={disconnecting === "telegram"}
+                          style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: C.muted, fontFamily: "'Bricolage Grotesque', sans-serif", minHeight: 36 }}
+                        >
+                          <Unlink size={12} /> {disconnecting === "telegram" ? "..." : "Déconnecter"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowTelegramQR(!showTelegramQR)}
+                          style={{ display: "flex", alignItems: "center", gap: 4, background: "#0088cc", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: "#fff", fontFamily: "'Bricolage Grotesque', sans-serif", minHeight: 36 }}
+                        >
+                          <Link2 size={12} /> Connecter
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Telegram QR expand */}
+                {showTelegramQR && !channels.find(c => c.channel === "telegram") && (
+                  <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, background: `${C.bg}` }}>
+                    <div style={{ textAlign: "center" }}>
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`https://t.me/iartisan_bot?start=${profile?.id || ""}`)}`}
+                        alt="Telegram QR"
+                        style={{ width: 120, height: 120, borderRadius: 8, margin: "0 auto 8px" }}
+                      />
+                      <div style={{ fontSize: 12, color: C.muted }}>Scannez ou cliquez ci-dessous</div>
+                      <a
+                        href={`https://t.me/iartisan_bot?start=${profile?.id || ""}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "10px 20px", background: "#0088cc", color: "#fff", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif" }}
+                      >
+                        <Send size={14} /> Ouvrir Telegram
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* WhatsApp */}
+                {(() => {
+                  const wa = channels.find(c => c.channel === "whatsapp");
+                  return (
+                    <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: wa ? "#25D36620" : `${C.muted}10`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Phone size={18} color={wa ? "#25D366" : C.muted} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.dark }}>WhatsApp</div>
+                        {wa ? (
+                          <div style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Connecté {wa.display_name ? `(${wa.display_name})` : ""}</div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: C.muted }}>Non connecté</div>
+                        )}
+                      </div>
+                      {wa ? (
+                        <button
+                          onClick={async () => {
+                            setDisconnecting("whatsapp");
+                            try {
+                              const res = await fetch("/api/client/channels", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel: "whatsapp" }) });
+                              if (res.ok) setChannels(prev => prev.filter(c => c.channel !== "whatsapp"));
+                            } finally { setDisconnecting(null); }
+                          }}
+                          disabled={disconnecting === "whatsapp"}
+                          style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: C.muted, fontFamily: "'Bricolage Grotesque', sans-serif", minHeight: 36 }}
+                        >
+                          <Unlink size={12} /> {disconnecting === "whatsapp" ? "..." : "Déconnecter"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowWhatsAppQR(!showWhatsAppQR)}
+                          style={{ display: "flex", alignItems: "center", gap: 4, background: "#25D366", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: "#fff", fontFamily: "'Bricolage Grotesque', sans-serif", minHeight: 36 }}
+                        >
+                          <Link2 size={12} /> Connecter
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* WhatsApp QR expand */}
+                {showWhatsAppQR && !channels.find(c => c.channel === "whatsapp") && (
+                  <div style={{ padding: "12px 16px", background: `${C.bg}` }}>
+                    <div style={{ textAlign: "center" }}>
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`https://wa.me/33176340256?text=link_${profile?.id || ""}`)}`}
+                        alt="WhatsApp QR"
+                        style={{ width: 120, height: 120, borderRadius: 8, margin: "0 auto 8px" }}
+                      />
+                      <div style={{ fontSize: 12, color: C.muted }}>Scannez ou cliquez ci-dessous</div>
+                      <a
+                        href={`https://wa.me/33176340256?text=link_${profile?.id || ""}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "10px 20px", background: "#25D366", color: "#fff", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif" }}
+                      >
+                        <Phone size={14} /> Ouvrir WhatsApp
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* ── Mes assistants (fiches agents complètes) ── */}
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
