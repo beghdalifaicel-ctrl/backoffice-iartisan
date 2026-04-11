@@ -475,12 +475,23 @@ export default function AdminDashboard() {
 
       {/* ─── BOTTOM NAV ───────────────────────────────────── */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-around", padding: "6px 0 8px", zIndex: 100, boxShadow: "0 -4px 20px rgba(26,26,20,.06)" }}>
-        {navItems.map(n => (
-          <button key={n.id} onClick={() => setPage(n.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", color: page === n.id ? C.accent : C.muted, fontSize: 10, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: page === n.id ? 700 : 500 }}>
-            <n.icon size={20} color={page === n.id ? C.accent : C.muted} />
-            <span>{n.label}</span>
-          </button>
-        ))}
+        {navItems.map(n => {
+          const href = n.id === "clients" ? "/admin/clients" : n.id === "leads" ? "/admin/leads" : n.id === "factures" ? "/admin/factures" : n.id === "agents" ? "/admin/agents" : undefined;
+          if (href) {
+            return (
+              <a key={n.id} href={href} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "6px 8px", textDecoration: "none", color: C.muted, fontSize: 10, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 500 }}>
+                <n.icon size={20} color={C.muted} />
+                <span>{n.label}</span>
+              </a>
+            );
+          }
+          return (
+            <button key={n.id} onClick={() => setPage(n.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", color: page === n.id ? C.accent : C.muted, fontSize: 10, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: page === n.id ? 700 : 500 }}>
+              <n.icon size={20} color={page === n.id ? C.accent : C.muted} />
+              <span>{n.label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
