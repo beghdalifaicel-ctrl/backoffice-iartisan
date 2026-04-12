@@ -27,6 +27,41 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// ─── Message persistence helper ──────────────────────────────
+
+async function saveMessage(opts: {
+  clientId: string;
+  content: string;
+  fromAdmin: boolean;
+  channel: string;
+  phone?: string;
+  extension?: string;
+  event?: string;
+  payload?: Record<string, any>;
+}) {
+  try {
+    const id = crypto.randomUUID();
+    await supabase.from("messages").insert({
+      id,
+      topic: `whatsapp-${opts.clientId}`,
+      content: opts.content,
+      extension: opts.extension || "txt",
+      fromAdmin: opts.fromAdmin,
+      read: opts.fromAdmin, // agent messages are auto-read
+      clientId: opts.clientId,
+      event: opts.event || "message",
+      private: false,
+      payload: {
+        channel: "whatsapp",
+        phone: opts.phone,
+        ...opts.payload,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to save message:", err);
+  }
+}
+
 // ─── WhatsApp send helper (Meta Cloud API only) ────────────
 
 async function sendMessage(toPhone: string, text: string) {
@@ -351,6 +386,17 @@ async function processMessage(
   // ── Handle VOICE messages ──
   if (mediaType === "audio" && mediaId) {
     try {
+      // Persist incoming voice message (before transcription)
+      await saveMessage({
+        clientId: client.id,
+        content: "[Message vocal]",
+        fromAdmin: false,
+        channel: "whatsapp",
+        phone: normalized,
+        extension: "ogg",
+        payload: { mediaId, mediaType: "audio" },
+      });
+
       const transcription = await transcribeWhatsAppAudio(mediaId);
       if (!transcription) {
         await sendMessage(phone, "Je n'ai pas reussi a transcrire votre vocal. Reessayez ou envoyez un message texte.");
@@ -369,6 +415,17 @@ async function processMessage(
   // ── Handle IMAGE messages → Devis par photo ──
   if (mediaType === "image" && mediaId) {
     try {
+      // Persist incoming image message
+      await saveMessage({
+        clientId: client.id,
+        content: caption || "[Photo envoyée]",
+        fromAdmin: false,
+        channel: "whatsapp",
+        phone: normalized,
+        extension: "img",
+        payload: { mediaId, mediaType: "image" },
+      });
+
       const agentName = await getAgentDisplayName(client.id, "ADMIN");
       await sendMessage(phone, `${agentName} analyse votre photo...`);
 
@@ -395,6 +452,16 @@ async function processMessage(
       const fullResponse = response + (limitCheck.warning || "");
       await sendMessage(phone, fullResponse);
 
+      // Persist agent response (image analysis)
+      await saveMessage({
+        clientId: client.id,
+        content: fullResponse,
+        fromAdmin: true,
+        channel: "whatsapp",
+        phone: normalized,
+        payload: { agentType: "ADMIN", action: "photo_quote" },
+      });
+
       // Log
       await supabase.from("agent_logs").insert({
         client_id: client.id,
@@ -416,6 +483,15 @@ async function processMessage(
 
   // ── Normal text message → LLM ──
   if (!text) return;
+
+  // Persist incoming user message
+  await saveMessage({
+    clientId: client.id,
+    content: text,
+    fromAdmin: false,
+    channel: "whatsapp",
+    phone: normalized,
+  });
 
   let agentType: AgentType = "ADMIN";
   const lowerText = text.toLowerCase();
@@ -450,6 +526,16 @@ async function processMessage(
 
   const reply = (response.content || "Desole, je n'ai pas pu traiter votre demande. Reessayez.") + (limitCheck.warning || "");
   await sendMessage(phone, reply);
+
+  // Persist agent response
+  await saveMessage({
+    clientId: client.id,
+    content: reply,
+    fromAdmin: true,
+    channel: "whatsapp",
+    phone: normalized,
+    payload: { agentType, model: response.model },
+  });
 
   // Log
   await supabase.from("agent_logs").insert({

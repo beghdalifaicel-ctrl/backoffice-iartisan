@@ -11,6 +11,41 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// ─── Message persistence helper ──────────────────────────────
+
+async function saveMessage(opts: {
+  clientId: string;
+  content: string;
+  fromAdmin: boolean;
+  channel: string;
+  chatId?: number;
+  extension?: string;
+  event?: string;
+  payload?: Record<string, any>;
+}) {
+  try {
+    const id = crypto.randomUUID();
+    await supabase.from("messages").insert({
+      id,
+      topic: `telegram-${opts.clientId}`,
+      content: opts.content,
+      extension: opts.extension || "txt",
+      fromAdmin: opts.fromAdmin,
+      read: opts.fromAdmin,
+      clientId: opts.clientId,
+      event: opts.event || "message",
+      private: false,
+      payload: {
+        channel: "telegram",
+        chatId: opts.chatId,
+        ...opts.payload,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to save message:", err);
+  }
+}
+
 // ─── Telegram API helpers ─────────────────────────────────
 
 async function sendMessage(chatId: number, text: string, parseMode = "HTML") {
@@ -241,6 +276,15 @@ export async function POST(req: NextRequest) {
     const agentName = await getAgentDisplayName(client.id, agentType);
     const systemPrompt = buildChatPrompt(client, agentName);
 
+    // Persist incoming user message
+    await saveMessage({
+      clientId: client.id,
+      content: text,
+      fromAdmin: false,
+      channel: "telegram",
+      chatId,
+    });
+
     // Appeler Mistral
     const response = await callLLM({
       taskType: "email.reply", // Use balanced tier for conversational
@@ -262,6 +306,16 @@ export async function POST(req: NextRequest) {
     } else {
       await sendMessage(chatId, reply);
     }
+
+    // Persist agent response
+    await saveMessage({
+      clientId: client.id,
+      content: reply,
+      fromAdmin: true,
+      channel: "telegram",
+      chatId,
+      payload: { agentType, model: response.model },
+    });
 
     // Logger l'interaction
     await supabase.from("agent_logs").insert({
