@@ -30,8 +30,8 @@ Dans le **Dashboard Stripe** (mode Test d'abord) :
    | Produit       | Prix mensuel | Prix ID (à copier) |
    |---------------|-------------|---------------------|
    | Essentiel     | 49,00 €/mois | `price_xxx...`     |
-   | Croissance    | 99,00 €/mois | `price_xxx...`     |
-   | Pilote Auto   | 179,00 €/mois | `price_xxx...`    |
+   | Pro    | 99,00 €/mois | `price_xxx...`     |
+   | Max   | 179,00 €/mois | `price_xxx...`    |
 
 2. Chaque produit = tarification **récurrente mensuelle**
 
@@ -75,8 +75,8 @@ DATABASE_URL="postgresql://postgres:PASSWORD@db.REF.supabase.co:5432/postgres"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 STRIPE_PRICE_ESSENTIEL="price_..."
-STRIPE_PRICE_CROISSANCE="price_..."
-STRIPE_PRICE_PILOTE_AUTO="price_..."
+STRIPE_PRICE_PRO="price_..."
+STRIPE_PRICE_MAX="price_..."
 
 # Auth Admin
 ADMIN_EMAIL="faicel@iartisan.io"
@@ -136,7 +136,7 @@ const response = await fetch("https://VOTRE-DOMAINE.vercel.app/api/leads", {
     company: "Dupont Plomberie",
     metier: "Plombier",
     ville: "Lyon",
-    plan: "ESSENTIEL", // ou CROISSANCE ou PILOTE_AUTO
+    plan: "ESSENTIEL", // ou PRO ou MAX
   }),
 });
 ```

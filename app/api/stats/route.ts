@@ -23,14 +23,14 @@ export async function GET() {
       select: { plan: true },
     });
 
-    const planPrices: Record<string, number> = { ESSENTIEL: 49, CROISSANCE: 99, PILOTE_AUTO: 179 };
+    const planPrices: Record<string, number> = { ESSENTIEL: 49, PRO: 99, MAX: 179 };
     const mrr = activeWithPlans.reduce((sum: number, c: { plan: string }) => sum + (planPrices[c.plan] || 0), 0);
 
     // Répartition par offre
     const planCounts = {
       ESSENTIEL: activeWithPlans.filter((c: { plan: string }) => c.plan === "ESSENTIEL").length,
-      CROISSANCE: activeWithPlans.filter((c: { plan: string }) => c.plan === "CROISSANCE").length,
-      PILOTE_AUTO: activeWithPlans.filter((c: { plan: string }) => c.plan === "PILOTE_AUTO").length,
+      PRO: activeWithPlans.filter((c: { plan: string }) => c.plan === "PRO").length,
+      MAX: activeWithPlans.filter((c: { plan: string }) => c.plan === "MAX").length,
     };
 
     // Leads ce mois

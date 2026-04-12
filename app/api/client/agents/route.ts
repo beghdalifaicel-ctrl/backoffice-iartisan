@@ -119,16 +119,16 @@ export async function GET(req: NextRequest) {
     }
 
     // ─── Agents actifs selon le plan (aligné sur PLAN_AGENTS de types.ts) ──
-    // ESSENTIEL = ADMIN seul | CROISSANCE = ADMIN + MARKETING | PILOTE_AUTO = tous
+    // ESSENTIEL = ADMIN seul | PRO = ADMIN + MARKETING | MAX = tous
     const agentsByPlan: Record<string, { name: string; type: string; desc: string }[]> = {
       ESSENTIEL: [
         { name: "Alice", type: "ADMIN", desc: "Gestion emails, devis, factures et relances" },
       ],
-      CROISSANCE: [
+      PRO: [
         { name: "Alice", type: "ADMIN", desc: "Gestion emails, devis, factures et relances" },
         { name: "Marc", type: "MARKETING", desc: "Google Business, avis, SEO et réseaux sociaux" },
       ],
-      PILOTE_AUTO: [
+      MAX: [
         { name: "Alice", type: "ADMIN", desc: "Gestion emails, devis, factures et relances" },
         { name: "Marc", type: "MARKETING", desc: "Google Business, avis, SEO et réseaux sociaux" },
         { name: "Léa", type: "COMMERCIAL", desc: "Prospection, scraping et emails commerciaux" },

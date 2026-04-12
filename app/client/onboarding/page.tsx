@@ -17,11 +17,11 @@ const PLAN_AGENTS: Record<string, { type: string; emoji: string; role: string; d
   ESSENTIEL: [
     { type: "ADMIN", emoji: "📋", role: "Assistant Gestion", desc: "Je m'occupe de vos devis et factures. Plus besoin d'y penser le soir." },
   ],
-  CROISSANCE: [
+  PRO: [
     { type: "ADMIN", emoji: "📋", role: "Assistant Gestion", desc: "Je m'occupe de vos devis et factures. Plus besoin d'y penser le soir." },
     { type: "MARKETING", emoji: "📢", role: "Assistant Visibilité", desc: "Je gère votre fiche Google et vos avis. Vous restez visible sans effort." },
   ],
-  PILOTE_AUTO: [
+  MAX: [
     { type: "ADMIN", emoji: "📋", role: "Assistant Gestion", desc: "Je m'occupe de vos devis et factures. Plus besoin d'y penser le soir." },
     { type: "MARKETING", emoji: "📢", role: "Assistant Visibilité", desc: "Je gère votre fiche Google et vos avis. Vous restez visible sans effort." },
     { type: "COMMERCIAL", emoji: "💼", role: "Assistant Prospection", desc: "Je trouve de nouveaux clients pour vous. Vous n'avez qu'à choisir." },
@@ -33,7 +33,7 @@ export default function ClientOnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [clientId, setClientId] = useState("");
-  const [plan, setPlan] = useState("PILOTE_AUTO");
+  const [plan, setPlan] = useState("MAX");
 
   // Step 1 — Company info (réduit)
   const [company, setCompany] = useState("");
@@ -51,7 +51,7 @@ export default function ClientOnboardingPage() {
       .then(data => {
         if (!data?.client) return;
         setClientId(data.client.id);
-        setPlan(data.client.plan || "PILOTE_AUTO");
+        setPlan(data.client.plan || "MAX");
         setCompany(data.client.company || "");
         setMetier(data.client.metier || "");
         setVille(data.client.ville || "");
@@ -63,7 +63,7 @@ export default function ClientOnboardingPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const agents = PLAN_AGENTS[plan] || PLAN_AGENTS.PILOTE_AUTO;
+  const agents = PLAN_AGENTS[plan] || PLAN_AGENTS.MAX;
 
   const saveStep = async (stepNum: number, data: any) => {
     setSaving(true);

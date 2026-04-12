@@ -34,7 +34,7 @@ const PLANS = [
     ],
   },
   {
-    key: "CROISSANCE",
+    key: "PRO",
     name: "Pro",
     price: 99,
     agent: "Marie + Lucas — Votre commercial digital",
@@ -51,7 +51,7 @@ const PLANS = [
     ],
   },
   {
-    key: "PILOTE_AUTO",
+    key: "MAX",
     name: "Max",
     price: 179,
     agent: "Marie + Lucas + Samir — Apporteur d\u2019affaires",

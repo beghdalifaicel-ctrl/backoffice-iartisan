@@ -13,8 +13,8 @@ const C = {
   red: "#dc2626", blue: "#2563eb",
 };
 
-const PLAN_LABELS: Record<string, string> = { ESSENTIEL: "Essentiel", CROISSANCE: "Pro", PILOTE_AUTO: "Max" };
-const PLAN_PRICES: Record<string, number> = { ESSENTIEL: 49, CROISSANCE: 99, PILOTE_AUTO: 179 };
+const PLAN_LABELS: Record<string, string> = { ESSENTIEL: "Essentiel", PRO: "Pro", MAX: "Max" };
+const PLAN_PRICES: Record<string, number> = { ESSENTIEL: 49, PRO: 99, MAX: 179 };
 
 const SUB_STATUS_MAP: Record<string, { label: string; color: string }> = {
   active: { label: "Actif", color: C.green },
@@ -183,8 +183,8 @@ const ALL_TOOLS = TOOL_CATEGORIES.flatMap(c => c.tools);
 
 const PLAN_AGENT_ACCESS: Record<string, string[]> = {
   ESSENTIEL: ["ADMIN"],
-  CROISSANCE: ["ADMIN", "MARKETING"],
-  PILOTE_AUTO: ["ADMIN", "MARKETING", "COMMERCIAL"],
+  PRO: ["ADMIN", "MARKETING"],
+  MAX: ["ADMIN", "MARKETING", "COMMERCIAL"],
 };
 
 // ─── AUTONOMY LEVELS ─────────────────────────────────────────────────────────

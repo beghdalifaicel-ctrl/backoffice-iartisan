@@ -22,8 +22,8 @@ const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> =
 
 const PLAN_MAP: Record<string, string> = {
   ESSENTIEL: "Essentiel · 49€",
-  CROISSANCE: "Pro · 99€",
-  PILOTE_AUTO: "Max · 179€",
+  PRO: "Pro · 99€",
+  MAX: "Max · 179€",
 };
 
 export default function AdminClientsPage() {
@@ -73,7 +73,7 @@ export default function AdminClientsPage() {
 
       {/* Plan filters */}
       <div style={{ padding: "0 16px 8px", display: "flex", gap: 8, overflowX: "auto" }}>
-        {[{ val: "", label: "Tous plans" }, { val: "ESSENTIEL", label: "Essentiel" }, { val: "CROISSANCE", label: "Pro" }, { val: "PILOTE_AUTO", label: "Max" }].map(f => (
+        {[{ val: "", label: "Tous plans" }, { val: "ESSENTIEL", label: "Essentiel" }, { val: "PRO", label: "Pro" }, { val: "MAX", label: "Max" }].map(f => (
           <FilterButton key={f.val} label={f.label} active={planFilter === f.val} activeColor={C.green} activeBg="rgba(45,106,79,.1)" onClick={() => setPlanFilter(f.val)} />
         ))}
       </div>

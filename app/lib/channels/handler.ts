@@ -181,7 +181,7 @@ async function checkMessageLimit(
 ): Promise<{ allowed: boolean; message?: string; usage?: number; limit?: number }> {
   const monthlyLimit = PLAN_QUOTAS[plan].messages;
 
-  // -1 means unlimited (PILOTE_AUTO / Max plan)
+  // -1 means unlimited (MAX / Max plan)
   if (monthlyLimit === -1) {
     return { allowed: true };
   }
@@ -211,8 +211,8 @@ async function checkMessageLimit(
   if (currentUsage > monthlyLimit) {
     const planNames: Record<PlanType, string> = {
       ESSENTIEL: 'Pro (99€/mois)',
-      CROISSANCE: 'Max (179€/mois)',
-      PILOTE_AUTO: 'Max',
+      PRO: 'Max (179€/mois)',
+      MAX: 'Max',
     };
     const upgradeTo = planNames[plan];
     return {

@@ -55,8 +55,8 @@ export default function AdminFacturesPage() {
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Revenu par offre</div>
               {[
                 { plan: "Essentiel", count: stats.plans.ESSENTIEL || 0, price: 49, color: C.muted },
-                { plan: "Pro", count: stats.plans.CROISSANCE || 0, price: 99, color: C.accent },
-                { plan: "Max", count: stats.plans.PILOTE_AUTO || 0, price: 179, color: C.green },
+                { plan: "Pro", count: stats.plans.PRO || 0, price: 99, color: C.accent },
+                { plan: "Max", count: stats.plans.MAX || 0, price: 179, color: C.green },
               ].map((p, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", padding: "10px 0", borderBottom: i < 2 ? `1px solid ${C.border}` : "none", gap: 12 }}>
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: p.color, flexShrink: 0 }} />

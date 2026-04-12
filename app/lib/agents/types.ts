@@ -2,20 +2,20 @@
 
 export type AgentType = 'ADMIN' | 'MARKETING' | 'COMMERCIAL';
 export type TaskStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-export type PlanType = 'ESSENTIEL' | 'CROISSANCE' | 'PILOTE_AUTO';
+export type PlanType = 'ESSENTIEL' | 'PRO' | 'MAX';
 
 // Which agents each plan can access
 export const PLAN_AGENTS: Record<PlanType, AgentType[]> = {
   ESSENTIEL: ['ADMIN'],
-  CROISSANCE: ['ADMIN', 'MARKETING'],
-  PILOTE_AUTO: ['ADMIN', 'MARKETING', 'COMMERCIAL'],
+  PRO: ['ADMIN', 'MARKETING'],
+  MAX: ['ADMIN', 'MARKETING', 'COMMERCIAL'],
 };
 
 // Quotas per plan per month
 export const PLAN_QUOTAS: Record<PlanType, { tasks: number; tokens: number; emails: number; messages: number }> = {
   ESSENTIEL: { tasks: 500, tokens: 500_000, emails: 100, messages: 100 },
-  CROISSANCE: { tasks: 2000, tokens: 2_000_000, emails: 500, messages: 500 },
-  PILOTE_AUTO: { tasks: 5000, tokens: 5_000_000, emails: 2000, messages: -1 }, // -1 = unlimited
+  PRO: { tasks: 2000, tokens: 2_000_000, emails: 500, messages: 500 },
+  MAX: { tasks: 5000, tokens: 5_000_000, emails: 2000, messages: -1 }, // -1 = unlimited
 };
 
 // Default assistant names per agent type

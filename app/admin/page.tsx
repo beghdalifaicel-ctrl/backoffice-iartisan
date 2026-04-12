@@ -9,7 +9,7 @@ import { C } from "@/lib/design-tokens";
 type Stats = {
   clients: { total: number; active: number; trial: number; churned: number; pastDue: number };
   revenue: { mrr: number; arr: number; arpu: number; thisMonth: number; unpaidCount: number; unpaidAmount: number };
-  plans: { ESSENTIEL: number; CROISSANCE: number; PILOTE_AUTO: number };
+  plans: { ESSENTIEL: number; PRO: number; MAX: number };
   leads: { thisMonth: number; lastMonth: number; total: number; byStatus: any; conversionRate: number };
 } | null;
 
@@ -32,7 +32,7 @@ export default function AdminDashboard() {
       setStats(s && s.plans ? s : {
         clients: { total: 0, active: 0, trial: 0, churned: 0, pastDue: 0 },
         revenue: { mrr: 0, arr: 0, arpu: 0, thisMonth: 0, unpaidCount: 0, unpaidAmount: 0 },
-        plans: { ESSENTIEL: 0, CROISSANCE: 0, PILOTE_AUTO: 0 },
+        plans: { ESSENTIEL: 0, PRO: 0, MAX: 0 },
         leads: { thisMonth: 0, lastMonth: 0, total: 0, byStatus: {}, conversionRate: 0 },
       });
       setClients(c.clients || []);
@@ -45,8 +45,8 @@ export default function AdminDashboard() {
   // Plan distribution for chart
   const planDist = stats ? [
     { name: "Essentiel", value: stats.plans.ESSENTIEL, color: C.muted },
-    { name: "Pro", value: stats.plans.CROISSANCE, color: C.accent },
-    { name: "Max", value: stats.plans.PILOTE_AUTO, color: C.green },
+    { name: "Pro", value: stats.plans.PRO, color: C.accent },
+    { name: "Max", value: stats.plans.MAX, color: C.green },
   ] : [];
 
   // ─── BOTTOM NAV ──────────────────────────────────────────────────────────

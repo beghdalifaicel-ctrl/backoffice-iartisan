@@ -153,8 +153,8 @@ async function checkMessageLimit(
   if (usage > monthlyLimit) {
     const planNames: Record<PlanType, string> = {
       ESSENTIEL: "Pro (99/mois)",
-      CROISSANCE: "Max (179/mois)",
-      PILOTE_AUTO: "Max",
+      PRO: "Max (179/mois)",
+      MAX: "Max",
     };
     return {
       allowed: false,

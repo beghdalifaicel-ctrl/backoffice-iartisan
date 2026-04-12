@@ -13,11 +13,11 @@ const PLAN_AGENTS: Record<string, { type: string; defaultName: string; emoji: st
   ESSENTIEL: [
     { type: "ADMIN", defaultName: "Alice", emoji: "📋", role: "Admin", desc: "Emails, devis, factures, relances" },
   ],
-  CROISSANCE: [
+  PRO: [
     { type: "ADMIN", defaultName: "Alice", emoji: "📋", role: "Admin", desc: "Emails, devis, factures, relances" },
     { type: "MARKETING", defaultName: "Marc", emoji: "📢", role: "Marketing", desc: "Fiche Google, avis, SEO, réseaux sociaux" },
   ],
-  PILOTE_AUTO: [
+  MAX: [
     { type: "ADMIN", defaultName: "Alice", emoji: "📋", role: "Admin", desc: "Emails, devis, factures, relances" },
     { type: "MARKETING", defaultName: "Marc", emoji: "📢", role: "Marketing", desc: "Fiche Google, avis, SEO, réseaux sociaux" },
     { type: "COMMERCIAL", defaultName: "Léa", emoji: "💼", role: "Commercial", desc: "Prospection, leads, recouvrement, annuaires" },
@@ -28,7 +28,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [clientId, setClientId] = useState("");
-  const [plan, setPlan] = useState("PILOTE_AUTO");
+  const [plan, setPlan] = useState("MAX");
 
   // Step 1 — Company info
   const [company, setCompany] = useState("");
@@ -57,7 +57,7 @@ export default function OnboardingPage() {
         .then(r => r.json())
         .then(data => {
           if (data.client) {
-            setPlan(data.client.plan || "PILOTE_AUTO");
+            setPlan(data.client.plan || "MAX");
             setCompany(data.client.company || "");
             setMetier(data.client.metier || "");
             setVille(data.client.ville || "");
@@ -81,7 +81,7 @@ export default function OnboardingPage() {
     }
   }, []);
 
-  const agents = PLAN_AGENTS[plan] || PLAN_AGENTS.PILOTE_AUTO;
+  const agents = PLAN_AGENTS[plan] || PLAN_AGENTS.MAX;
 
   // Initialize default names
   useEffect(() => {

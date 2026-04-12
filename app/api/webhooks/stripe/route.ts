@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
           });
 
           // Email de confirmation d'abonnement au client
-          const planNames: Record<string, string> = { ESSENTIEL: "Essentiel", CROISSANCE: "Pro", PILOTE_AUTO: "Max" };
-          const planPrices: Record<string, string> = { ESSENTIEL: "49", CROISSANCE: "99", PILOTE_AUTO: "179" };
+          const planNames: Record<string, string> = { ESSENTIEL: "Essentiel", PRO: "Pro", MAX: "Max" };
+          const planPrices: Record<string, string> = { ESSENTIEL: "49", PRO: "99", MAX: "179" };
           await sendSubscriptionActiveEmail(client.email, {
             firstName: client.firstName,
             plan: planNames[client.plan] || client.plan,
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
         const sub = event.data.object as Stripe.Subscription;
         const trialClient = await prisma.client.findFirst({ where: { stripeSubscriptionId: sub.id } });
         if (trialClient) {
-          const planNames: Record<string, string> = { ESSENTIEL: "Essentiel", CROISSANCE: "Pro", PILOTE_AUTO: "Max" };
+          const planNames: Record<string, string> = { ESSENTIEL: "Essentiel", PRO: "Pro", MAX: "Max" };
           await sendTrialEndingEmail(trialClient.email, {
             firstName: trialClient.firstName,
             daysLeft: 3,
@@ -130,9 +130,9 @@ export async function POST(req: NextRequest) {
         const priceId = sub.items.data[0]?.price.id;
 
         // Détecter le plan
-        let plan: "ESSENTIEL" | "CROISSANCE" | "PILOTE_AUTO" = "ESSENTIEL";
-        if (priceId === process.env.STRIPE_PRICE_CROISSANCE) plan = "CROISSANCE";
-        if (priceId === process.env.STRIPE_PRICE_PILOTE_AUTO) plan = "PILOTE_AUTO";
+        let plan: "ESSENTIEL" | "PRO" | "MAX" = "ESSENTIEL";
+        if (priceId === process.env.STRIPE_PRICE_PRO) plan = "PRO";
+        if (priceId === process.env.STRIPE_PRICE_MAX) plan = "MAX";
 
         await prisma.client.updateMany({
           where: { stripeSubscriptionId: sub.id },
