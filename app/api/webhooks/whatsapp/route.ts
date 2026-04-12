@@ -33,29 +33,15 @@ async function saveMessage(opts: {
   clientId: string;
   content: string;
   fromAdmin: boolean;
-  channel: string;
-  phone?: string;
-  extension?: string;
-  event?: string;
-  payload?: Record<string, any>;
 }) {
   try {
     const id = crypto.randomUUID();
     await supabase.from("messages").insert({
       id,
-      topic: `whatsapp-${opts.clientId}`,
       content: opts.content,
-      extension: opts.extension || "txt",
       fromAdmin: opts.fromAdmin,
       read: opts.fromAdmin, // agent messages are auto-read
       clientId: opts.clientId,
-      event: opts.event || "message",
-      private: false,
-      payload: {
-        channel: "whatsapp",
-        phone: opts.phone,
-        ...opts.payload,
-      },
     });
   } catch (err) {
     console.error("Failed to save message:", err);
@@ -391,10 +377,6 @@ async function processMessage(
         clientId: client.id,
         content: "[Message vocal]",
         fromAdmin: false,
-        channel: "whatsapp",
-        phone: normalized,
-        extension: "ogg",
-        payload: { mediaId, mediaType: "audio" },
       });
 
       const transcription = await transcribeWhatsAppAudio(mediaId);
@@ -420,10 +402,6 @@ async function processMessage(
         clientId: client.id,
         content: caption || "[Photo envoyée]",
         fromAdmin: false,
-        channel: "whatsapp",
-        phone: normalized,
-        extension: "img",
-        payload: { mediaId, mediaType: "image" },
       });
 
       const agentName = await getAgentDisplayName(client.id, "ADMIN");
@@ -457,9 +435,6 @@ async function processMessage(
         clientId: client.id,
         content: fullResponse,
         fromAdmin: true,
-        channel: "whatsapp",
-        phone: normalized,
-        payload: { agentType: "ADMIN", action: "photo_quote" },
       });
 
       // Log
@@ -489,8 +464,6 @@ async function processMessage(
     clientId: client.id,
     content: text,
     fromAdmin: false,
-    channel: "whatsapp",
-    phone: normalized,
   });
 
   let agentType: AgentType = "ADMIN";
@@ -532,9 +505,6 @@ async function processMessage(
     clientId: client.id,
     content: reply,
     fromAdmin: true,
-    channel: "whatsapp",
-    phone: normalized,
-    payload: { agentType, model: response.model },
   });
 
   // Log
