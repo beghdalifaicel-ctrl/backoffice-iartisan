@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
       metadata: { company: company || "", metier: metier || "", ville: ville || "" },
     });
 
-    // Essai gratuit seulement sur Pro et Max, pas sur Essentiel
-    const hasTrial = planKey !== "ESSENTIEL";
+    // Essai gratuit 14 jours sur TOUS les plans (y compris Essentiel)
+    const hasTrial = true;
     const hasSetupFee = PLANS[planKey].setup > 0;
 
     // Create client in DB
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     // Create Stripe Checkout session
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.iartisan.io";
 
-    // Build line items: subscription + optional setup fee
+    // Build line items: subscription uniquement
     const lineItems: any[] = [{ price: PLANS[planKey].priceId, quantity: 1 }];
 
     const checkoutParams: any = {
@@ -78,9 +78,25 @@ export async function POST(req: NextRequest) {
       allow_promotion_codes: true,
     };
 
-    // Ajouter l'essai gratuit seulement pour Pro et Max
+    // Essai gratuit 14 jours sur tous les plans
     if (hasTrial) {
-      checkoutParams.subscription_data = { trial_period_days: 14 };
+      const subscriptionData: any = { trial_period_days: 14 };
+
+      // Frais de mise en service facturés à la FIN du trial (ajoutés à la 1ère facture)
+      if (hasSetupFee) {
+        subscriptionData.invoice_items = [{
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: `Frais de mise en service — ${PLANS[planKey].name}`,
+            },
+            unit_amount: PLANS[planKey].setup, // en centimes (5000 = 50€)
+          },
+          quantity: 1,
+        }];
+      }
+
+      checkoutParams.subscription_data = subscriptionData;
     }
 
     const session = await stripe.checkout.sessions.create(checkoutParams);

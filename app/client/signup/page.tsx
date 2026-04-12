@@ -16,7 +16,7 @@ const PLANS = [
     name: "Essentiel",
     price: 49,
     setup: 50,
-    trial: false,
+    trial: true,
     desc: "Votre secrétaire IA",
     reframe: "Le prix d'un plein de gasoil",
     result: "~10h/semaine de paperasse en moins",
@@ -28,7 +28,7 @@ const PLANS = [
     ],
   },
   {
-    key: "CROISSANCE",
+    key: "PRO",
     name: "Pro",
     price: 99,
     setup: 0,
@@ -46,7 +46,7 @@ const PLANS = [
     ],
   },
   {
-    key: "PILOTE_AUTO",
+    key: "MAX",
     name: "Max",
     price: 179,
     setup: 0,
@@ -78,9 +78,18 @@ function SignupContent() {
   const canceled = params.get("canceled");
   const errorParam = params.get("error");
 
-  const [step, setStep] = useState(1);
-  const [selectedPlan, setSelectedPlan] = useState("CROISSANCE");
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", metier: "" });
+  // Pré-remplissage depuis les URL params (redirect depuis le site vitrine)
+  const initialPlan = params.get("plan") || "PRO";
+  const initialFirstName = params.get("firstName") || "";
+  const initialLastName = params.get("lastName") || "";
+  const initialEmail = params.get("email") || "";
+  const initialMetier = params.get("metier") || "";
+
+  // Si des params sont fournis, aller directement au step 2 (formulaire)
+  const hasPrefilledData = !!(initialFirstName && initialEmail);
+  const [step, setStep] = useState(hasPrefilledData ? 2 : 1);
+  const [selectedPlan, setSelectedPlan] = useState(PLANS.some(p => p.key === initialPlan) ? initialPlan : "PRO");
+  const [form, setForm] = useState({ firstName: initialFirstName, lastName: initialLastName, email: initialEmail, password: "", metier: initialMetier });
   const [error, setError] = useState(canceled ? "Paiement annulé. Vous pouvez réessayer." : errorParam ? "Une erreur est survenue. Réessayez." : "");
   const [loading, setLoading] = useState(false);
 
@@ -248,7 +257,7 @@ function SignupContent() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {[
                 { icon: Shield, text: "Sans engagement · Annulable en 1 clic" },
-                { icon: Clock, text: "Essai gratuit sur les formules Pro et Max" },
+                { icon: Clock, text: "14 jours d'essai gratuit sur toutes les formules" },
                 { icon: Users, text: "Déjà utilisé par des artisans partout en France" },
               ].map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: C.muted }}>
@@ -283,11 +292,10 @@ function SignupContent() {
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>
                   Offre {selectedPlanData.name} — {selectedPlanData.price}€/mois
                 </div>
-                <div style={{ fontSize: 12, color: selectedPlanData.trial ? C.green : C.muted, fontWeight: 600, marginTop: 2 }}>
-                  {selectedPlanData.trial ? (
-                    <><Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} />14 jours gratuits inclus</>
-                  ) : (
-                    <>Frais de mise en service : {selectedPlanData.setup}€ HT</>
+                <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 2 }}>
+                  <Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} />14 jours gratuits — 0€ aujourd'hui
+                  {selectedPlanData.setup > 0 && (
+                    <span style={{ color: C.muted, marginLeft: 8 }}>· + {selectedPlanData.setup}€ HT de mise en service après l'essai</span>
                   )}
                 </div>
               </div>
@@ -386,9 +394,9 @@ function SignupContent() {
                 <p style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 14, lineHeight: 1.6 }}>
                   En continuant, vous acceptez nos{" "}
                   <a href="/cgv" target="_blank" style={{ color: C.muted, textDecoration: "underline" }}>conditions d'utilisation</a>.<br />
-                  {selectedPlanData.trial
-                    ? "Aucun prélèvement pendant l'essai gratuit."
-                    : `Mise en service ${selectedPlanData.setup}€ HT + premier mois ${selectedPlanData.price}€ HT.`
+                  {selectedPlanData.setup > 0
+                    ? `0€ aujourd'hui. Après 14 jours d'essai : ${selectedPlanData.setup}€ HT de mise en service + ${selectedPlanData.price}€ HT premier mois. Puis ${selectedPlanData.price}€/mois HT.`
+                    : "Aucun prélèvement pendant l'essai gratuit."
                   }
                 </p>
               </form>

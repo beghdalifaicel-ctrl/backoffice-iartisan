@@ -72,8 +72,8 @@ model Client {
 
 enum Plan {
   ESSENTIEL
-  CROISSANCE
-  PILOTE_AUTO
+  PRO        // ex-CROISSANCE
+  MAX        // ex-PILOTE_AUTO
 }
 
 enum ClientStatus {

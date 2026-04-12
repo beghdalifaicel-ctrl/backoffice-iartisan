@@ -10,7 +10,7 @@ export const PLANS = {
     name: "Essentiel",
     price: 4900, // centimes
     priceId: process.env.STRIPE_PRICE_ESSENTIEL!,
-    setup: 5000,
+    setup: 5000, // 50€ HT frais de mise en service
     features: [
       "Fiche Google créée et optimisée",
       "Posts Google hebdomadaires auto",
@@ -19,10 +19,10 @@ export const PLANS = {
       "Tableau de bord mensuel",
     ],
   },
-  CROISSANCE: {
+  PRO: {
     name: "Pro",
     price: 9900,
-    priceId: process.env.STRIPE_PRICE_CROISSANCE!,
+    priceId: process.env.STRIPE_PRICE_PRO!,
     setup: 0,
     features: [
       "Tout Essentiel +",
@@ -32,10 +32,10 @@ export const PLANS = {
       "Support prioritaire 6j/7",
     ],
   },
-  PILOTE_AUTO: {
+  MAX: {
     name: "Max",
     price: 17900,
-    priceId: process.env.STRIPE_PRICE_PILOTE_AUTO!,
+    priceId: process.env.STRIPE_PRICE_MAX!,
     setup: 0,
     features: [
       "Tout Pro +",
