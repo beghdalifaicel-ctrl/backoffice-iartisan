@@ -16,6 +16,7 @@ import { createClient } from "@supabase/supabase-js";
 import { callLLM } from "@/lib/agents/llm";
 import { AgentType, PlanType, PLAN_AGENTS, PLAN_QUOTAS, DEFAULT_AGENT_NAMES } from "@/lib/agents/types";
 import { analyzeImageForQuote, downloadImageAsBase64 } from "@/lib/channels/vision";
+import { handleDevisGeneration } from "@/lib/pdf/devis-flow";
 
 const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "iartisan-whatsapp-verify";
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
@@ -27,28 +28,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ─── Message persistence helper ──────────────────────────────
-
-async function saveMessage(opts: {
-  clientId: string;
-  content: string;
-  fromAdmin: boolean;
-}) {
-  try {
-    const id = crypto.randomUUID();
-    await supabase.from("messages").insert({
-      id,
-      content: opts.content,
-      fromAdmin: opts.fromAdmin,
-      read: opts.fromAdmin, // agent messages are auto-read
-      clientId: opts.clientId,
-    });
-  } catch (err) {
-    console.error("Failed to save message:", err);
-  }
-}
-
-// ─── WhatsApp send helper (Meta Cloud API only) ────────────
+// ─── WhatsApp send helpers (Meta Cloud API only) ──────────────
 
 async function sendMessage(toPhone: string, text: string) {
   if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
@@ -77,6 +57,44 @@ async function sendMessage(toPhone: string, text: string) {
       }
     );
   }
+}
+
+async function sendDocument(
+  toPhone: string,
+  documentUrl: string,
+  filename: string,
+  caption?: string
+) {
+  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
+    console.warn("WhatsApp Cloud API not configured");
+    return;
+  }
+
+  const payload: any = {
+    messaging_product: "whatsapp",
+    to: toPhone,
+    type: "document",
+    document: {
+      link: documentUrl,
+      filename: filename,
+    },
+  };
+
+  if (caption) {
+    payload.document.caption = caption;
+  }
+
+  await fetch(
+    `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
 // ─── Client lookup / link ───────────────────────────────────
@@ -263,20 +281,28 @@ async function downloadWhatsAppImage(mediaId: string): Promise<{ base64: string;
 // ─── Chat prompt ───────────────────────────────────────────
 
 function buildChatPrompt(client: any, agentName: string): string {
-  return `Tu es ${agentName}, l'assistante IA personnelle de "${client.company}" (${client.metier} a ${client.ville}).
-IMPORTANT : Tu t'adresses TOUJOURS a ${client.firstName || "ton patron"} (l'artisan), JAMAIS a ses clients. Tu es son bras droit, sa secretaire.
+  return `Tu es ${agentName}, l'assistante IA personnelle de ${client.firstName || "l'artisan"}, patron de l'entreprise "${client.company}" (${client.metier} a ${client.ville}).
 
-Tu tutoies toujours ton patron. Tu es chaleureuse, directe, comme une collegue de confiance. Quand tu rediges pour un CLIENT FINAL, tu vouvoies TOUJOURS. Tu parles toujours en francais.
+IMPORTANT : Tu t'adresses TOUJOURS a ${client.firstName || "ton patron"} (l'artisan), JAMAIS a ses clients. ${client.firstName || "L'artisan"} te parle via WhatsApp pour que tu l'aides dans son travail quotidien. Tu es son bras droit, sa secretaire, son assistante de confiance.
+
+TUTOIEMENT : Tu tutoies toujours ${client.firstName || "ton patron"}. Tu es chaleureuse, directe, comme une collegue de confiance.
+VOUVOIEMENT : Quand tu rediges un message, devis ou email destine a un CLIENT FINAL, tu vouvoies TOUJOURS le client.
+
+Tu l'aides sur l'administratif : devis, factures, relances clients, emails, planning, suivi chantier.
+Quand il te demande un tarif, donne-lui l'info de SA grille tarifaire pour qu'il puisse repondre a ses clients.
+
 Tu peux aider avec :
+- Creer des devis (texte, vocal ou photo) et des factures
 - Lire et resumer les emails recus
-- Rediger et envoyer des reponses email
-- Creer des devis et des factures
-- Relancer les clients en attente
-- Donner un resume de l'activite recente
+- Gerer son planning et ses RDV
+- Relancer les clients (devis non signes, factures impayees)
+- Suivre l'avancement des chantiers
+- Te souvenir de tout sur ses clients (tarifs pratiques, preferences, historique)
 
-Si on te demande quelque chose que tu ne peux pas faire, dis-le honnetement et propose une alternative.
+Si on te demande quelque chose hors de ton perimetre (technique, commercial), dis-le honnetement et propose une alternative.
 Reponds de maniere concise (max 3-4 paragraphes). Utilise des emojis avec parcimonie.
-Ne reponds JAMAIS en Markdown. Utilise du texte brut uniquement.`;
+Ne reponds JAMAIS en Markdown. Utilise du texte brut uniquement.
+Reponds toujours en francais, sauf si ${client.firstName || "ton patron"} te parle dans une autre langue.`;
 }
 
 // ─── Process a single message ───────────────────────────────
@@ -372,13 +398,6 @@ async function processMessage(
   // ── Handle VOICE messages ──
   if (mediaType === "audio" && mediaId) {
     try {
-      // Persist incoming voice message (before transcription)
-      await saveMessage({
-        clientId: client.id,
-        content: "[Message vocal]",
-        fromAdmin: false,
-      });
-
       const transcription = await transcribeWhatsAppAudio(mediaId);
       if (!transcription) {
         await sendMessage(phone, "Je n'ai pas reussi a transcrire votre vocal. Reessayez ou envoyez un message texte.");
@@ -397,13 +416,6 @@ async function processMessage(
   // ── Handle IMAGE messages → Devis par photo ──
   if (mediaType === "image" && mediaId) {
     try {
-      // Persist incoming image message
-      await saveMessage({
-        clientId: client.id,
-        content: caption || "[Photo envoyée]",
-        fromAdmin: false,
-      });
-
       const agentName = await getAgentDisplayName(client.id, "ADMIN");
       await sendMessage(phone, `${agentName} analyse votre photo...`);
 
@@ -430,13 +442,6 @@ async function processMessage(
       const fullResponse = response + (limitCheck.warning || "");
       await sendMessage(phone, fullResponse);
 
-      // Persist agent response (image analysis)
-      await saveMessage({
-        clientId: client.id,
-        content: fullResponse,
-        fromAdmin: true,
-      });
-
       // Log
       await supabase.from("agent_logs").insert({
         client_id: client.id,
@@ -459,16 +464,74 @@ async function processMessage(
   // ── Normal text message → LLM ──
   if (!text) return;
 
-  // Persist incoming user message
-  await saveMessage({
-    clientId: client.id,
-    content: text,
-    fromAdmin: false,
-  });
-
   let agentType: AgentType = "ADMIN";
   const lowerText = text.toLowerCase();
 
+  // ── Check for devis request ──
+  const devisKeywords = ["devis", "quote", "estimation", "tarif", "prix", "chiffrage"];
+  const isDevisRequest = devisKeywords.some((kw) => lowerText.includes(kw));
+
+  if (isDevisRequest) {
+    try {
+      // Try to generate devis
+      await sendMessage(phone, "Je genere votre devis...");
+
+      const devisResult = await handleDevisGeneration({
+        clientId: client.id,
+        clientName: `Client ${new Date().getTime()}`,
+        clientAddress: undefined,
+        clientEmail: undefined,
+        userPhone: normalized,
+        userMessage: text,
+      });
+
+      if (devisResult.success && devisResult.documentUrl) {
+        // Send PDF as WhatsApp document
+        await sendDocument(
+          phone,
+          devisResult.documentUrl,
+          devisResult.devisNumber || "devis.pdf",
+          `Devis ${devisResult.devisNumber}\n\nVoici votre devis. Vous pouvez le telecharger, l'imprimer ou le signer numeriquement.`
+        );
+
+        const successMsg = `${devisResult.devisNumber} cree avec succes !\n\nLe PDF a ete envoye par WhatsApp. Vous pouvez le telecharger, l'imprimer pour signature, ou me dire si vous avez des modifications a y apporter.` + (limitCheck.warning || "");
+        await sendMessage(phone, successMsg);
+
+        // Log
+        await supabase.from("agent_logs").insert({
+          client_id: client.id,
+          agent_type: "ADMIN",
+          action: "whatsapp.devis_generated",
+          tokens_used: 0,
+          model_used: "pdf-lib",
+          duration_ms: 0,
+          cost_cents: 0,
+          metadata: {
+            whatsapp_phone: normalized,
+            devis_number: devisResult.devisNumber,
+            document_url: devisResult.documentUrl,
+          },
+        });
+
+        return;
+      } else {
+        // Fallback to LLM if devis generation failed
+        await sendMessage(
+          phone,
+          `Impossible de generer le PDF (${devisResult.error}). Je vais vous aider autrement...`
+        );
+      }
+    } catch (err: any) {
+      console.error("WhatsApp devis generation error:", err);
+      await sendMessage(
+        phone,
+        `Erreur lors de la generation du devis. Reessayez ou decrivez autrement votre demande.`
+      );
+      return;
+    }
+  }
+
+  // ── Route to appropriate agent ──
   if (
     lowerText.includes("prospect") ||
     lowerText.includes("lead") ||
@@ -499,13 +562,6 @@ async function processMessage(
 
   const reply = (response.content || "Desole, je n'ai pas pu traiter votre demande. Reessayez.") + (limitCheck.warning || "");
   await sendMessage(phone, reply);
-
-  // Persist agent response
-  await saveMessage({
-    clientId: client.id,
-    content: reply,
-    fromAdmin: true,
-  });
 
   // Log
   await supabase.from("agent_logs").insert({
