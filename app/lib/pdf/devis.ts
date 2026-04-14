@@ -47,7 +47,7 @@ export interface DevisData {
 interface PDFState {
   y: number;
   page: any;
-  document: any;
+  document: any; font: any; boldFont: any;
 }
 
 // ─── UTILITIES ──────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ function addText(
     spacing = 14,
   } = options;
 
-  const font = bold ? state.document.getFont('Helvetica-Bold') : state.document.getFont('Helvetica');
+  const font = bold ? state.boldFont : state.font;
   state.page.drawText(text, {
     x,
     y: state.y,
@@ -126,8 +126,6 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
   const helvetica = await document.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await document.embedFont(StandardFonts.HelveticaBold);
 
-  document.registerFont('Helvetica', helvetica);
-  document.registerFont('Helvetica-Bold', helveticaBold);
 
   const tvaRate = data.tvaRate || 10;
   const validityDays = data.validityDays || 30;
@@ -145,7 +143,7 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
   // ─── PAGE 1 ───────────────────────────────────────────────────────
 
   let state = newPage(document);
-  state = { ...state, y: 750 };
+  state = { ...state, y: 750, document, font: helvetica, boldFont: helveticaBold };
 
   // Header: Company name
   state.page.drawText(data.company, {
