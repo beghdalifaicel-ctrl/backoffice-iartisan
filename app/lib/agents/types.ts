@@ -20,9 +20,9 @@ export const PLAN_QUOTAS: Record<PlanType, { tasks: number; tokens: number; emai
 
 // Default assistant names per agent type
 export const DEFAULT_AGENT_NAMES: Record<AgentType, string> = {
-  ADMIN: 'Alice',
-  MARKETING: 'Marc',
-  COMMERCIAL: 'Léa',
+  ADMIN: 'Marie',
+  MARKETING: 'Lucas',
+  COMMERCIAL: 'Samir',
 };
 
 // Agent descriptions for onboarding
