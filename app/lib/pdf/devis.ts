@@ -114,9 +114,9 @@ function addText(
   state.y -= spacing * lines;
 }
 
-function newPage(document: any) {
+function newPage(document: any, font?: any, boldFont?: any) {
   const page = document.addPage([595, 842]); // A4
-  return { page, y: 800 };
+  return { page, y: 800, document, font, boldFont };
 }
 
 // ─── MAIN FUNCTION ──────────────────────────────────────────────────────
@@ -142,8 +142,8 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
 
   // ─── PAGE 1 ───────────────────────────────────────────────────────
 
-  let state = newPage(document);
-  state = { ...state, y: 750, document, font: helvetica, boldFont: helveticaBold };
+  let state = newPage(document, helvetica, helveticaBold);
+  state = { ...state, y: 750 };
 
   // Header: Company name
   state.page.drawText(data.company, {

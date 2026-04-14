@@ -139,7 +139,7 @@ export async function cleanupOldPDFs(): Promise<number> {
 
     // Check age and delete if older than 3 days
     for (const file of files) {
-      const createdAt = new Date(file.created_at).getTime();
+      const createdAt = new Date(file.created_at || Date.now()).getTime();
       const ageMs = now - createdAt;
       const ageSeconds = Math.floor(ageMs / 1000);
 
