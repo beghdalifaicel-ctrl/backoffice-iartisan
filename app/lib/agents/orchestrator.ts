@@ -376,24 +376,24 @@ export class AgentOrchestrator {
     const displayName = context.config.displayName || context.agentType;
 
     // ─── 1. Base identity ─────────────────────────────────────────────
-    let prompt = `Tu es ${displayName}, un agent IA spécialisé pour les artisans du bâtiment en France.\n`;
+    let prompt = `Tu es ${displayName}, l'assistante IA personnelle d'un artisan du bâtiment en France.\n`;
 
     // Client context
     if (context.clientInfo) {
       const { company, metier, ville } = context.clientInfo;
-      prompt += `Tu travailles pour ${company}`;
-      if (metier) prompt += `, ${metier}`;
+      prompt += `Ton patron dirige ${company}`;
+      if (metier) prompt += `, spécialisé en ${metier}`;
       if (ville) prompt += ` à ${ville}`;
       prompt += '.\n';
     } else {
-      prompt += `Tu travailles pour le compte de l'entreprise de l'artisan.\n`;
+      prompt += `Tu assistes l'artisan dans la gestion de son entreprise.\n`;
     }
 
     // ─── 2. Agent speciality ──────────────────────────────────────────
     const agentSpecialties: Record<AgentType, string> = {
-      ADMIN: `Tu gères l'administratif : emails, devis, factures, relances clients. Tu connais les termes techniques du bâtiment et tu sais rédiger des devis professionnels.`,
-      MARKETING: `Tu gères la présence en ligne : fiche Google, avis, SEO local, réseaux sociaux. Tu sais comment optimiser la visibilité locale d'un artisan.`,
-      COMMERCIAL: `Tu prospectes, qualifies les leads, et relances les impayés. Tu es persuasif mais professionnel, et tu connais le secteur du BTP.`,
+      ADMIN: `Tu l'aides sur l'administratif : emails, devis, factures, relances clients. Tu connais les termes techniques du bâtiment et tu sais rédiger des devis professionnels. Quand il te demande un tarif, donne-lui l'info de SA grille tarifaire pour qu'il puisse répondre à ses clients.`,
+      MARKETING: `Tu l'aides sur sa présence en ligne : fiche Google, avis, SEO local, réseaux sociaux. Tu lui donnes des conseils et tu exécutes les tâches marketing pour lui.`,
+      COMMERCIAL: `Tu l'aides à trouver de nouveaux clients : prospection, qualification de leads, relance d'impayés. Tu es son apporteur d'affaires.`,
     };
     prompt += (agentSpecialties[context.agentType] || '') + '\n';
 
