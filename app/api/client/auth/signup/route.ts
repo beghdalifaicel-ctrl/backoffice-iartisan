@@ -37,34 +37,37 @@ export async function POST(req: NextRequest) {
       metadata: { company: company || "", metier: metier || "", ville: ville || "" },
     });
 
-    // Essai gratuit 14 jours sur TOUS les plans (y compris Essentiel)
+    // Essai gratuit 14 jours sur TOUS les plans
     const hasTrial = true;
     const hasSetupFee = PLANS[planKey].setup > 0;
 
-    // Create client in DB
-    const client = await prisma.client.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        phone: phone || null,
-        company: company || `${firstName} ${lastName}`,
-        metier: metier || "",
-        ville: ville || "",
-        plan: planKey,
-        status: hasTrial ? "TRIAL" : "ACTIVE",
-        trialEndsAt: hasTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null,
-        passwordHash,
-        stripeCustomerId: customer.id,
-      },
-    });
+    // Create client in DB using raw SQL to bypass Prisma enum mapping bug
+    // (Prisma v5.22 sends stale enum value "CROISSANCE" instead of "ESSENTIEL")
+    const clientId = `c${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
+    const now = new Date();
+    const trialEnd = hasTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null;
+    const statusVal = hasTrial ? "TRIAL" : "ACTIVE";
+    const companyVal = company || `${firstName} ${lastName}`;
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO clients (
+        id, "createdAt", "updatedAt", "firstName", "lastName", email, phone,
+        company, metier, ville, plan, status, "trialEndsAt", "passwordHash",
+        "stripeCustomerId", "googleReviewCount", "sitePublished", onboarding_completed
+      ) VALUES (
+        $1, $2, $2, $3, $4, $5, $6, $7, $8, $9,
+        $10::"Plan", $11::"ClientStatus", $12, $13, $14, 0, false, false
+      )`,
+      clientId, now, firstName, lastName, email, phone || null, companyVal,
+      metier || "", ville || "", planKey, statusVal, trialEnd, passwordHash, customer.id
+    );
+
+    const client = { id: clientId };
 
     // Create Stripe Checkout session
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.iartisan.io";
 
-    // Build line items: subscription uniquement
     const lineItems: any[] = [{ price: PLANS[planKey].priceId, quantity: 1 }];
-
     const checkoutParams: any = {
       customer: customer.id,
       mode: "subscription",
@@ -81,21 +84,17 @@ export async function POST(req: NextRequest) {
     // Essai gratuit 14 jours sur tous les plans
     if (hasTrial) {
       const subscriptionData: any = { trial_period_days: 14 };
-
       // Frais de mise en service facturés à la FIN du trial (ajoutés à la 1ère facture)
       if (hasSetupFee) {
         subscriptionData.invoice_items = [{
           price_data: {
             currency: "eur",
-            product_data: {
-              name: `Frais de mise en service — ${PLANS[planKey].name}`,
-            },
+            product_data: { name: `Frais de mise en service — ${PLANS[planKey].name}` },
             unit_amount: PLANS[planKey].setup, // en centimes (5000 = 50€)
           },
           quantity: 1,
         }];
       }
-
       checkoutParams.subscription_data = subscriptionData;
     }
 
@@ -108,12 +107,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Signup error:", error);
-
     // If Stripe error, try to give useful message
     if (error.type === "StripeInvalidRequestError") {
       return NextResponse.json({ error: "Erreur de configuration paiement. Contactez le support." }, { status: 500 });
     }
-
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
