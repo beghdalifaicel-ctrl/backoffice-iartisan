@@ -42,12 +42,19 @@ export async function POST(req: NextRequest) {
     const hasSetupFee = PLANS[planKey].setup > 0;
 
     // Create client in DB using raw SQL to bypass Prisma enum mapping bug
-    // (Prisma v5.22 sends stale enum value "CROISSANCE" instead of "ESSENTIEL")
+    // (Prisma v5.22 transforms enum params even in $executeRawUnsafe)
+    // IMPORTANT: plan and status are inlined in SQL (whitelist-validated) to avoid Prisma enum interception
     const clientId = `c${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
     const now = new Date();
     const trialEnd = hasTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null;
     const statusVal = hasTrial ? "TRIAL" : "ACTIVE";
     const companyVal = company || `${firstName} ${lastName}`;
+
+    // Whitelist validation to prevent SQL injection
+    const validPlans = ["ESSENTIEL", "PRO", "MAX"];
+    const validStatuses = ["TRIAL", "ACTIVE", "INACTIVE", "CHURNED"];
+    if (!validPlans.includes(planKey)) throw new Error("Invalid plan");
+    if (!validStatuses.includes(statusVal)) throw new Error("Invalid status");
 
     await prisma.$executeRawUnsafe(
       `INSERT INTO clients (
@@ -56,10 +63,10 @@ export async function POST(req: NextRequest) {
         "stripeCustomerId", "googleReviewCount", "sitePublished", onboarding_completed
       ) VALUES (
         $1, $2, $2, $3, $4, $5, $6, $7, $8, $9,
-        $10::"Plan", $11::"ClientStatus", $12, $13, $14, 0, false, false
+        '${planKey}'::"Plan", '${statusVal}'::"ClientStatus", $10, $11, $12, 0, false, false
       )`,
       clientId, now, firstName, lastName, email, phone || null, companyVal,
-      metier || "", ville || "", planKey, statusVal, trialEnd, passwordHash, customer.id
+      metier || "", ville || "", trialEnd, passwordHash, customer.id
     );
 
     const client = { id: clientId };
