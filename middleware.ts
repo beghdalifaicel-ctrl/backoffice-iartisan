@@ -54,6 +54,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/integrations") ||
     pathname.startsWith("/api/agents/worker") ||
     pathname.startsWith("/api/test") ||
+    pathname.startsWith("/test-agents") ||
     pathname.startsWith("/api/admin/knowledge/seed") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
