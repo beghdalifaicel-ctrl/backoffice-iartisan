@@ -1,7 +1,8 @@
 /**
- * WhatsApp Conversational Agent Webhook
+ * WhatsApp Conversational Agent Webhook — v2 Multi-Agent
  *
  * Supports: text, voice (Groq Whisper), images (Mistral Pixtral devis)
+ * Multi-agent routing: /marie /lucas /samir commands + auto-detect by keywords + session memory
  * Provider: Meta Cloud API only (no Ringover — Ringover = Easydentist only)
  *
  * Setup:
@@ -14,11 +15,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callLLM } from "@/lib/agents/llm";
-import { AgentType, PlanType, PLAN_AGENTS, PLAN_QUOTAS, DEFAULT_AGENT_NAMES } from "@/lib/agents/types";
-import { analyzeImageForQuote, downloadImageAsBase64 } from "@/lib/channels/vision";
+import {
+  AgentType,
+  PlanType,
+  PLAN_AGENTS,
+  PLAN_QUOTAS,
+  DEFAULT_AGENT_NAMES,
+} from "@/lib/agents/types";
+import { analyzeImageForQuote } from "@/lib/channels/vision";
 import { handleDevisGeneration } from "@/lib/pdf/devis-flow";
 
-const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "iartisan-whatsapp-verify";
+const WHATSAPP_VERIFY_TOKEN =
+  process.env.WHATSAPP_VERIFY_TOKEN || "iartisan-whatsapp-verify";
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -28,6 +36,34 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// ─── Agent routing config ─────────────────────────────────────
+
+const AGENT_COMMANDS: Record<string, AgentType> = {
+  "/marie": "ADMIN",
+  "/lucas": "MARKETING",
+  "/samir": "COMMERCIAL",
+};
+
+const AGENT_KEYWORDS: Record<AgentType, string[]> = {
+  ADMIN: [
+    "devis", "facture", "relance", "email", "courrier", "rdv", "planning",
+    "rendez-vous", "agenda", "rappel", "administratif", "comptabilite",
+    "paiement", "recu", "avoir", "bon de commande", "resume", "recap",
+  ],
+  MARKETING: [
+    "google", "avis", "seo", "reseaux", "post", "instagram", "facebook",
+    "fiche google", "visibilite", "site web", "blog", "photo", "video",
+    "temoignage", "reputation", "etoiles", "commentaire", "pub",
+    "publicite", "annonce", "campagne",
+  ],
+  COMMERCIAL: [
+    "prospect", "lead", "client potentiel", "appel d'offres", "marche public",
+    "impaye", "recouvrement", "pipeline", "closing", "b2b", "architecte",
+    "sous-traitance", "entreprise generale", "annuaire", "habitatpresto",
+    "marge", "fournisseur", "prix fournisseur", "negociation",
+  ],
+};
+
 // ─── WhatsApp send helpers (Meta Cloud API only) ──────────────
 
 async function sendMessage(toPhone: string, text: string) {
@@ -36,8 +72,8 @@ async function sendMessage(toPhone: string, text: string) {
     return;
   }
 
-  // WhatsApp max message is ~65536, but keep it reasonable
-  const parts = text.length > 4000 ? text.match(/[\s\S]{1,4000}/g) || [text] : [text];
+  const parts =
+    text.length > 4000 ? text.match(/[\s\S]{1,4000}/g) || [text] : [text];
 
   for (const part of parts) {
     await fetch(
@@ -74,15 +110,9 @@ async function sendDocument(
     messaging_product: "whatsapp",
     to: toPhone,
     type: "document",
-    document: {
-      link: documentUrl,
-      filename: filename,
-    },
+    document: { link: documentUrl, filename },
   };
-
-  if (caption) {
-    payload.document.caption = caption;
-  }
+  if (caption) payload.document.caption = caption;
 
   await fetch(
     `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
@@ -121,7 +151,11 @@ async function getClientByPhone(phone: string) {
   return client;
 }
 
-async function linkWhatsAppAccount(phone: string, clientId: string, displayName?: string) {
+async function linkWhatsAppAccount(
+  phone: string,
+  clientId: string,
+  displayName?: string
+) {
   const normalized = phone.replace(/[^0-9]/g, "");
 
   const { data: client } = await supabase
@@ -148,17 +182,183 @@ async function linkWhatsAppAccount(phone: string, clientId: string, displayName?
   return client;
 }
 
-// ─── Agent config ──────────────────────────────────────────
+// ─── Agent config from Supabase ──────────────────────────────
 
-async function getAgentDisplayName(clientId: string, agentType: AgentType): Promise<string> {
+async function getAgentConfig(clientId: string, agentType: AgentType) {
   const { data } = await supabase
     .from("agent_configs")
-    .select("display_name")
+    .select("display_name, instructions, personality")
     .eq("client_id", clientId)
     .eq("agent_type", agentType)
     .single();
 
-  return data?.display_name || DEFAULT_AGENT_NAMES[agentType];
+  return data;
+}
+
+async function getAgentDisplayName(
+  clientId: string,
+  agentType: AgentType
+): Promise<string> {
+  const config = await getAgentConfig(clientId, agentType);
+  return config?.display_name || DEFAULT_AGENT_NAMES[agentType];
+}
+
+// ─── Session management (active agent per phone) ─────────────
+
+async function getActiveAgent(
+  phone: string,
+  clientId: string
+): Promise<AgentType> {
+  const { data } = await supabase
+    .from("whatsapp_sessions")
+    .select("active_agent")
+    .eq("phone", phone)
+    .eq("client_id", clientId)
+    .single();
+
+  return (data?.active_agent as AgentType) || "ADMIN";
+}
+
+async function setActiveAgent(
+  phone: string,
+  clientId: string,
+  agentType: AgentType
+) {
+  await supabase.from("whatsapp_sessions").upsert(
+    {
+      phone,
+      client_id: clientId,
+      active_agent: agentType,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "phone" }
+  );
+}
+
+// ─── Chat history ─────────────────────────────────────────────
+
+async function getChatHistory(
+  clientId: string,
+  phone: string,
+  agentType: AgentType,
+  limit: number = 10
+) {
+  const { data } = await supabase
+    .from("chat_history")
+    .select("role, content")
+    .eq("client_id", clientId)
+    .eq("phone", phone)
+    .eq("agent_type", agentType)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return (data || []).reverse();
+}
+
+async function saveChatMessage(
+  clientId: string,
+  phone: string,
+  agentType: AgentType,
+  role: "user" | "assistant",
+  content: string
+) {
+  await supabase.from("chat_history").insert({
+    client_id: clientId,
+    channel: "whatsapp",
+    phone,
+    agent_type: agentType,
+    role,
+    content: content.substring(0, 5000),
+  });
+}
+
+// ─── Agent detection ──────────────────────────────────────────
+
+function parseAgentCommand(text: string): {
+  command: AgentType | null;
+  remainingText: string;
+} {
+  const trimmed = text.trim().toLowerCase();
+
+  for (const [cmd, agent] of Object.entries(AGENT_COMMANDS)) {
+    if (trimmed === cmd || trimmed.startsWith(cmd + " ")) {
+      const remaining = text.trim().substring(cmd.length).trim();
+      return { command: agent, remainingText: remaining };
+    }
+  }
+
+  return { command: null, remainingText: text };
+}
+
+function detectAgentFromMessage(text: string): AgentType | null {
+  const lower = text.toLowerCase();
+  const scores: Record<AgentType, number> = { ADMIN: 0, MARKETING: 0, COMMERCIAL: 0 };
+
+  for (const [agent, keywords] of Object.entries(AGENT_KEYWORDS)) {
+    for (const kw of keywords) {
+      if (lower.includes(kw)) {
+        scores[agent as AgentType] += kw.includes(" ") ? 2 : 1; // multi-word = stronger signal
+      }
+    }
+  }
+
+  const maxScore = Math.max(...Object.values(scores));
+  if (maxScore === 0) return null;
+
+  const winner = (Object.entries(scores) as [AgentType, number][]).find(
+    ([, s]) => s === maxScore
+  );
+  return winner ? winner[0] : null;
+}
+
+// ─── Build system prompt from agent config ────────────────────
+
+function buildSystemPrompt(
+  client: any,
+  agentType: AgentType,
+  agentName: string,
+  agentConfig: any
+): string {
+  const instructions = agentConfig?.instructions || "";
+  const personality = agentConfig?.personality || {};
+  const tutoiement = personality.tutoiement !== false;
+  const tone = personality.tone || "professionnel";
+
+  const roleLabels: Record<AgentType, string> = {
+    ADMIN: "secretaire / assistante administrative",
+    MARKETING: "responsable marketing digital",
+    COMMERCIAL: "responsable commercial / apporteur d'affaires",
+  };
+
+  let prompt = `Tu es ${agentName}, ${roleLabels[agentType]} de l'entreprise "${client.company}" (${client.metier} a ${client.ville}).
+
+IMPORTANT : Tu t'adresses TOUJOURS a ${client.firstName || "ton patron"} (l'artisan, le dirigeant). C'est LUI ton interlocuteur, ton patron. Tu es son bras droit.
+${tutoiement ? "Tu TUTOIES toujours ton patron. Tu es chaleureuse, directe, comme une collegue de confiance." : "Tu vouvoies ton interlocuteur."}
+Quand tu rediges un message pour un CLIENT FINAL (devis, relance, email), tu VOUVOIES TOUJOURS le client final.
+Tu parles toujours en francais sauf si ton patron te parle dans une autre langue.
+
+STYLE :
+- Messages concis et clairs (max 3-4 paragraphes)
+- Pas de Markdown (pas de ** ou ## ou -)
+- Toujours proposer une action concrete
+- Ton ${tone}
+- Utilise des emojis avec parcimonie
+`;
+
+  if (instructions) {
+    prompt += `\nINSTRUCTIONS SPECIFIQUES :\n${instructions}\n`;
+  }
+
+  if (
+    personality.restrictions &&
+    personality.restrictions.length > 0
+  ) {
+    prompt += `\nRESTRICTIONS :\n${personality.restrictions
+      .map((r: string) => `- ${r}`)
+      .join("\n")}\n`;
+  }
+
+  return prompt;
 }
 
 // ─── Message limits ────────────────────────────────────────
@@ -166,13 +366,28 @@ async function getAgentDisplayName(clientId: string, agentType: AgentType): Prom
 async function checkMessageLimit(
   clientId: string,
   plan: PlanType
-): Promise<{ allowed: boolean; warning?: string; blockMessage?: string }> {
+): Promise<{
+  allowed: boolean;
+  warning?: string;
+  blockMessage?: string;
+}> {
   const monthlyLimit = PLAN_QUOTAS[plan].messages;
-  if (monthlyLimit === -1) return { allowed: true }; // Unlimited
+  if (monthlyLimit === -1) return { allowed: true };
 
   const now = new Date();
-  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  const periodStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1
+  ).toISOString();
+  const periodEnd = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    0,
+    23,
+    59,
+    59
+  ).toISOString();
 
   const { data, error } = await supabase.rpc("check_and_increment_messages", {
     p_client_id: clientId,
@@ -184,7 +399,7 @@ async function checkMessageLimit(
 
   if (error) {
     console.error("Message limit check error:", error);
-    return { allowed: true }; // Fail open
+    return { allowed: true };
   }
 
   const usage = data?.messages_used || 0;
@@ -214,42 +429,56 @@ async function checkMessageLimit(
 
 // ─── Voice transcription (Groq Whisper) ────────────────────
 
-async function transcribeWhatsAppAudio(mediaId: string): Promise<string | null> {
+async function transcribeWhatsAppAudio(
+  mediaId: string
+): Promise<string | null> {
   if (!WHATSAPP_ACCESS_TOKEN) return null;
 
-  // Step 1: Get media URL from WhatsApp
-  const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${mediaId}`, {
-    headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
-  });
+  const mediaRes = await fetch(
+    `https://graph.facebook.com/v18.0/${mediaId}`,
+    { headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` } }
+  );
   const mediaData = await mediaRes.json();
   if (!mediaData.url) throw new Error("Failed to get WhatsApp media URL");
 
-  // Step 2: Download the audio
   const audioRes = await fetch(mediaData.url, {
     headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
   });
   const audioBuffer = await audioRes.arrayBuffer();
   const mimeType = mediaData.mime_type || "audio/ogg";
 
-  // Step 3: Transcribe via Groq Whisper
   if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not configured");
 
-  const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "m4a" : "ogg";
+  const ext = mimeType.includes("ogg")
+    ? "ogg"
+    : mimeType.includes("mp4")
+      ? "m4a"
+      : "ogg";
 
   const formData = new FormData();
-  formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), `voice.${ext}`);
+  formData.append(
+    "file",
+    new Blob([audioBuffer], { type: "audio/ogg" }),
+    `voice.${ext}`
+  );
   formData.append("model", "whisper-large-v3-turbo");
   formData.append("language", "fr");
   formData.append("response_format", "text");
 
-  const transcriptRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-    body: formData,
-  });
+  const transcriptRes = await fetch(
+    "https://api.groq.com/openai/v1/audio/transcriptions",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: formData,
+    }
+  );
 
   if (!transcriptRes.ok) {
-    console.error("Groq WhatsApp transcription failed:", await transcriptRes.text());
+    console.error(
+      "Groq WhatsApp transcription failed:",
+      await transcriptRes.text()
+    );
     return null;
   }
 
@@ -259,12 +488,15 @@ async function transcribeWhatsAppAudio(mediaId: string): Promise<string | null> 
 
 // ─── Image download from WhatsApp ──────────────────────────
 
-async function downloadWhatsAppImage(mediaId: string): Promise<{ base64: string; mimeType: string } | null> {
+async function downloadWhatsAppImage(
+  mediaId: string
+): Promise<{ base64: string; mimeType: string } | null> {
   if (!WHATSAPP_ACCESS_TOKEN) return null;
 
-  const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${mediaId}`, {
-    headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
-  });
+  const mediaRes = await fetch(
+    `https://graph.facebook.com/v18.0/${mediaId}`,
+    { headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` } }
+  );
   const mediaData = await mediaRes.json();
   if (!mediaData.url) return null;
 
@@ -276,33 +508,6 @@ async function downloadWhatsAppImage(mediaId: string): Promise<{ base64: string;
   const mimeType = mediaData.mime_type || "image/jpeg";
 
   return { base64, mimeType };
-}
-
-// ─── Chat prompt ───────────────────────────────────────────
-
-function buildChatPrompt(client: any, agentName: string): string {
-  return `Tu es ${agentName}, l'assistante IA personnelle de ${client.firstName || "l'artisan"}, patron de l'entreprise "${client.company}" (${client.metier} a ${client.ville}).
-
-IMPORTANT : Tu t'adresses TOUJOURS a ${client.firstName || "ton patron"} (l'artisan), JAMAIS a ses clients. ${client.firstName || "L'artisan"} te parle via WhatsApp pour que tu l'aides dans son travail quotidien. Tu es son bras droit, sa secretaire, son assistante de confiance.
-
-TUTOIEMENT : Tu tutoies toujours ${client.firstName || "ton patron"}. Tu es chaleureuse, directe, comme une collegue de confiance.
-VOUVOIEMENT : Quand tu rediges un message, devis ou email destine a un CLIENT FINAL, tu vouvoies TOUJOURS le client.
-
-Tu l'aides sur l'administratif : devis, factures, relances clients, emails, planning, suivi chantier.
-Quand il te demande un tarif, donne-lui l'info de SA grille tarifaire pour qu'il puisse repondre a ses clients.
-
-Tu peux aider avec :
-- Creer des devis (texte, vocal ou photo) et des factures
-- Lire et resumer les emails recus
-- Gerer son planning et ses RDV
-- Relancer les clients (devis non signes, factures impayees)
-- Suivre l'avancement des chantiers
-- Te souvenir de tout sur ses clients (tarifs pratiques, preferences, historique)
-
-Si on te demande quelque chose hors de ton perimetre (technique, commercial), dis-le honnetement et propose une alternative.
-Reponds de maniere concise (max 3-4 paragraphes). Utilise des emojis avec parcimonie.
-Ne reponds JAMAIS en Markdown. Utilise du texte brut uniquement.
-Reponds toujours en francais, sauf si ${client.firstName || "ton patron"} te parle dans une autre langue.`;
 }
 
 // ─── Process a single message ───────────────────────────────
@@ -324,14 +529,17 @@ async function processMessage(
     const client = await linkWhatsAppAccount(phone, clientId, displayName);
 
     if (!client) {
-      await sendMessage(phone, "Ce code ne correspond a aucun compte. Verifiez et reessayez.");
+      await sendMessage(
+        phone,
+        "Ce code ne correspond a aucun compte. Verifiez et reessayez."
+      );
       return;
     }
 
     const agentName = await getAgentDisplayName(clientId, "ADMIN");
     await sendMessage(
       phone,
-      `Compte lie avec succes !\n\nBonjour ${client.firstName || displayName || ""}, je suis ${agentName}, votre assistant IA pour ${client.company}.\n\nVous pouvez me demander :\n- "Resume mes emails"\n- "Fais un devis pour..."\n- "Relance le client X"\n- Envoyez une PHOTO de chantier pour un devis automatique\n- "Aide"\n\nC'est parti !`
+      `Compte lie avec succes !\n\nBonjour ${client.firstName || displayName || ""}, je suis ${agentName}, votre assistante IA pour ${client.company}.\n\nVous pouvez me demander :\n- "Resume mes emails"\n- "Fais un devis pour..."\n- "Relance le client X"\n- Envoyez une PHOTO de chantier pour un devis automatique\n\nCommandes agents :\n/marie — Admin & secretariat\n/lucas — Marketing digital\n/samir — Commercial & prospection\n\nC'est parti !`
     );
     return;
   }
@@ -348,24 +556,23 @@ async function processMessage(
       return;
     }
 
-    const agentName = await getAgentDisplayName(client.id, "ADMIN");
     const agents = PLAN_AGENTS[client.plan as PlanType] || ["ADMIN"];
+    const activeAgent = await getActiveAgent(normalized, client.id);
+    const activeName = await getAgentDisplayName(client.id, activeAgent);
 
-    let helpText = `${agentName} — Assistant ${client.company}\n\nVoici ce que je peux faire :\n\n`;
-    helpText += `Emails : "Resume mes emails", "Reponds a [email]"\n`;
-    helpText += `Devis : "Fais un devis pour [description]"\n`;
-    helpText += `Devis photo : Envoyez une photo de chantier !\n`;
-    helpText += `Factures : "Facture pour [client]"\n`;
-    helpText += `Relances : "Relance [client]"\n`;
-    helpText += `Resume : "Resume de la semaine"\n`;
+    let helpText = `Agent actif : ${activeName}\n\n`;
+    helpText += `Commandes :\n`;
+    helpText += `/marie — Admin (devis, factures, emails, planning)\n`;
 
     if (agents.includes("MARKETING")) {
-      helpText += `\nMarketing : "Poste sur Google", "Reponds aux avis"\n`;
+      helpText += `/lucas — Marketing (Google, avis, SEO, reseaux)\n`;
     }
     if (agents.includes("COMMERCIAL")) {
-      helpText += `\nCommercial : "Trouve des prospects a [ville]", "Relance les impayes"\n`;
+      helpText += `/samir — Commercial (prospects, leads, relances)\n`;
     }
 
+    helpText += `\nVocal : envoyez un message vocal, il sera transcrit\n`;
+    helpText += `Photo : envoyez une photo de chantier pour un devis\n`;
     helpText += `\nEcrivez simplement ce dont vous avez besoin !`;
     await sendMessage(phone, helpText);
     return;
@@ -383,7 +590,10 @@ async function processMessage(
   }
 
   if (!["ACTIVE", "TRIAL"].includes(client.status)) {
-    await sendMessage(phone, "Votre abonnement n'est pas actif. Contactez le support.");
+    await sendMessage(
+      phone,
+      "Votre abonnement n'est pas actif. Contactez le support."
+    );
     return;
   }
 
@@ -400,15 +610,23 @@ async function processMessage(
     try {
       const transcription = await transcribeWhatsAppAudio(mediaId);
       if (!transcription) {
-        await sendMessage(phone, "Je n'ai pas reussi a transcrire votre vocal. Reessayez ou envoyez un message texte.");
+        await sendMessage(
+          phone,
+          "Je n'ai pas reussi a transcrire votre vocal. Reessayez ou envoyez un message texte."
+        );
         return;
       }
-      // Process transcribed text as a normal message
       text = transcription;
-      await sendMessage(phone, `(Vocal transcrit : "${transcription.substring(0, 80)}${transcription.length > 80 ? "..." : ""}")`);
+      await sendMessage(
+        phone,
+        `(Vocal transcrit : "${transcription.substring(0, 80)}${transcription.length > 80 ? "..." : ""}")`
+      );
     } catch (err: any) {
       console.error("WhatsApp voice transcription error:", err);
-      await sendMessage(phone, "Erreur de transcription du vocal. Envoyez un message texte.");
+      await sendMessage(
+        phone,
+        "Erreur de transcription du vocal. Envoyez un message texte."
+      );
       return;
     }
   }
@@ -421,28 +639,39 @@ async function processMessage(
 
       const imageData = await downloadWhatsAppImage(mediaId);
       if (!imageData) {
-        await sendMessage(phone, "Impossible de telecharger l'image. Reessayez.");
+        await sendMessage(
+          phone,
+          "Impossible de telecharger l'image. Reessayez."
+        );
         return;
       }
 
-      const analysis = await analyzeImageForQuote(imageData.base64, imageData.mimeType, {
-        company: client.company,
-        metier: client.metier,
-        ville: client.ville,
-        firstName: client.firstName,
-        caption,
-      });
+      const analysis = await analyzeImageForQuote(
+        imageData.base64,
+        imageData.mimeType,
+        {
+          company: client.company,
+          metier: client.metier,
+          ville: client.ville,
+          firstName: client.firstName,
+          caption,
+        }
+      );
 
       if (analysis.error) {
-        await sendMessage(phone, `Erreur d'analyse : ${analysis.error}. Reessayez.`);
+        await sendMessage(
+          phone,
+          `Erreur d'analyse : ${analysis.error}. Reessayez.`
+        );
         return;
       }
 
-      const response = analysis.devisEstimatif || analysis.description || "Analyse terminee mais aucun devis n'a pu etre genere.";
-      const fullResponse = response + (limitCheck.warning || "");
-      await sendMessage(phone, fullResponse);
+      const response =
+        analysis.devisEstimatif ||
+        analysis.description ||
+        "Analyse terminee mais aucun devis n'a pu etre genere.";
+      await sendMessage(phone, response + (limitCheck.warning || ""));
 
-      // Log
       await supabase.from("agent_logs").insert({
         client_id: client.id,
         agent_type: "ADMIN",
@@ -450,30 +679,83 @@ async function processMessage(
         tokens_used: 0,
         model_used: "pixtral-large-latest",
         duration_ms: 0,
-        cost_cents: 5, // Pixtral ~5 cents per image
+        cost_cents: 5,
         metadata: { whatsapp_phone: normalized, caption },
       });
       return;
     } catch (err: any) {
       console.error("WhatsApp image analysis error:", err);
-      await sendMessage(phone, "Erreur lors de l'analyse de l'image. Reessayez.");
+      await sendMessage(
+        phone,
+        "Erreur lors de l'analyse de l'image. Reessayez."
+      );
       return;
     }
   }
 
-  // ── Normal text message → LLM ──
+  // ── Normal text message ──
   if (!text) return;
 
-  let agentType: AgentType = "ADMIN";
-  const lowerText = text.toLowerCase();
+  // ── 1) Parse agent command (/marie, /lucas, /samir) ──
+  const { command: agentCommand, remainingText } = parseAgentCommand(text);
+  let agentType: AgentType;
+  let messageToProcess = text;
 
-  // ── Check for devis request ──
-  const devisKeywords = ["devis", "quote", "estimation", "tarif", "prix", "chiffrage"];
+  if (agentCommand) {
+    // Check plan access
+    if (!PLAN_AGENTS[plan].includes(agentCommand)) {
+      const agentName = DEFAULT_AGENT_NAMES[agentCommand];
+      const planNames: Record<PlanType, string> = {
+        ESSENTIEL: "Pro (99/mois)",
+        PRO: "Max (179/mois)",
+        MAX: "Max",
+      };
+      await sendMessage(
+        phone,
+        `${agentName} n'est pas disponible avec votre plan actuel.\n\nPassez au plan ${planNames[plan]} pour y acceder !\niartisan.io/upgrade`
+      );
+      return;
+    }
+
+    agentType = agentCommand;
+    await setActiveAgent(normalized, client.id, agentType);
+
+    if (!remainingText) {
+      // Just switching agent, no message
+      const agentName = await getAgentDisplayName(client.id, agentType);
+      await sendMessage(
+        phone,
+        `OK, tu parles maintenant a ${agentName}. Qu'est-ce que je peux faire pour toi ?`
+      );
+      return;
+    }
+    messageToProcess = remainingText;
+  } else {
+    // ── 2) Auto-detect agent by keywords ──
+    const detected = detectAgentFromMessage(text);
+    if (detected && PLAN_AGENTS[plan].includes(detected)) {
+      agentType = detected;
+      await setActiveAgent(normalized, client.id, agentType);
+    } else {
+      // ── 3) Fall back to session agent ──
+      agentType = await getActiveAgent(normalized, client.id);
+    }
+  }
+
+  // ── Check for devis request (always handled by ADMIN) ──
+  const lowerText = messageToProcess.toLowerCase();
+  const devisKeywords = [
+    "devis",
+    "quote",
+    "estimation",
+    "tarif",
+    "prix",
+    "chiffrage",
+  ];
   const isDevisRequest = devisKeywords.some((kw) => lowerText.includes(kw));
 
   if (isDevisRequest) {
     try {
-      // Try to generate devis
       await sendMessage(phone, "Je genere votre devis...");
 
       const devisResult = await handleDevisGeneration({
@@ -482,22 +764,22 @@ async function processMessage(
         clientAddress: undefined,
         clientEmail: undefined,
         userPhone: normalized,
-        userMessage: text,
+        userMessage: messageToProcess,
       });
 
       if (devisResult.success && devisResult.documentUrl) {
-        // Send PDF as WhatsApp document
         await sendDocument(
           phone,
           devisResult.documentUrl,
           devisResult.devisNumber || "devis.pdf",
-          `Devis ${devisResult.devisNumber}\n\nVoici votre devis. Vous pouvez le telecharger, l'imprimer ou le signer numeriquement.`
+          `Devis ${devisResult.devisNumber}\n\nVoici votre devis. Telechargez-le, imprimez-le ou dites-moi si vous voulez des modifications.`
         );
 
-        const successMsg = `${devisResult.devisNumber} cree avec succes !\n\nLe PDF a ete envoye par WhatsApp. Vous pouvez le telecharger, l'imprimer pour signature, ou me dire si vous avez des modifications a y apporter.` + (limitCheck.warning || "");
+        const successMsg =
+          `${devisResult.devisNumber} cree avec succes !\n\nLe PDF est envoye. Dites-moi si vous avez des modifications.` +
+          (limitCheck.warning || "");
         await sendMessage(phone, successMsg);
 
-        // Log
         await supabase.from("agent_logs").insert({
           client_id: client.id,
           agent_type: "ADMIN",
@@ -512,58 +794,83 @@ async function processMessage(
             document_url: devisResult.documentUrl,
           },
         });
-
         return;
       } else {
-        // Fallback to LLM if devis generation failed
         await sendMessage(
           phone,
           `Impossible de generer le PDF (${devisResult.error}). Je vais vous aider autrement...`
         );
+        // Fall through to LLM
       }
     } catch (err: any) {
       console.error("WhatsApp devis generation error:", err);
       await sendMessage(
         phone,
-        `Erreur lors de la generation du devis. Reessayez ou decrivez autrement votre demande.`
+        "Erreur lors de la generation du devis. Reessayez ou decrivez autrement votre demande."
       );
       return;
     }
   }
 
-  // ── Route to appropriate agent ──
-  if (
-    lowerText.includes("prospect") ||
-    lowerText.includes("lead") ||
-    lowerText.includes("impaye") ||
-    lowerText.includes("recouvrement")
-  ) {
-    if (PLAN_AGENTS[plan].includes("COMMERCIAL")) agentType = "COMMERCIAL";
-  } else if (
-    lowerText.includes("google") ||
-    lowerText.includes("avis") ||
-    lowerText.includes("seo") ||
-    lowerText.includes("reseaux") ||
-    lowerText.includes("post")
-  ) {
-    if (PLAN_AGENTS[plan].includes("MARKETING")) agentType = "MARKETING";
+  // ── Build prompt from agent config ──
+  const agentConfig = await getAgentConfig(client.id, agentType);
+  const agentName =
+    agentConfig?.display_name || DEFAULT_AGENT_NAMES[agentType];
+  const systemPrompt = buildSystemPrompt(
+    client,
+    agentType,
+    agentName,
+    agentConfig
+  );
+
+  // ── Get chat history for context ──
+  const history = await getChatHistory(client.id, normalized, agentType, 10);
+  let userPrompt = messageToProcess;
+
+  if (history.length > 0) {
+    const historyText = history
+      .map(
+        (m: any) =>
+          `${m.role === "user" ? client.firstName || "Patron" : agentName}: ${m.content}`
+      )
+      .join("\n");
+    userPrompt = `[Historique recent]\n${historyText}\n\n[Message actuel]\n${messageToProcess}`;
   }
 
-  const agentName = await getAgentDisplayName(client.id, agentType);
-  const systemPrompt = buildChatPrompt(client, agentName);
+  // ── Save user message ──
+  await saveChatMessage(
+    client.id,
+    normalized,
+    agentType,
+    "user",
+    messageToProcess
+  );
 
+  // ── Call LLM ──
   const response = await callLLM({
     taskType: "email.reply",
     systemPrompt,
-    userPrompt: text,
+    userPrompt,
     maxTokens: 1024,
     temperature: 0.5,
   });
 
-  const reply = (response.content || "Desole, je n'ai pas pu traiter votre demande. Reessayez.") + (limitCheck.warning || "");
+  const reply =
+    (response.content ||
+      "Desole, je n'ai pas pu traiter votre demande. Reessayez.") +
+    (limitCheck.warning || "");
   await sendMessage(phone, reply);
 
-  // Log
+  // ── Save assistant response ──
+  await saveChatMessage(
+    client.id,
+    normalized,
+    agentType,
+    "assistant",
+    response.content || ""
+  );
+
+  // ── Log ──
   await supabase.from("agent_logs").insert({
     client_id: client.id,
     agent_type: agentType,
@@ -571,10 +878,13 @@ async function processMessage(
     tokens_used: response.tokensUsed.total,
     model_used: response.model,
     duration_ms: response.durationMs,
-    cost_cents: Math.ceil((response.tokensUsed.total / 1000) * 0.0027 * 100),
+    cost_cents: Math.ceil(
+      (response.tokensUsed.total / 1000) * 0.0027 * 100
+    ),
     metadata: {
       whatsapp_phone: normalized,
-      user_message: text.substring(0, 200),
+      user_message: messageToProcess.substring(0, 200),
+      agent_used: agentType,
     },
   });
 }
@@ -594,6 +904,7 @@ export async function GET(request: NextRequest) {
     ok: true,
     channel: "whatsapp",
     status: WHATSAPP_ACCESS_TOKEN ? "configured" : "not_configured",
+    features: ["multi-agent", "voice", "image", "devis-pdf"],
   });
 }
 
@@ -608,7 +919,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Meta Cloud API format only
     if (body.object === "whatsapp_business_account") {
       const entries = body.entry || [];
       for (const entry of entries) {
@@ -623,13 +933,20 @@ export async function POST(request: NextRequest) {
             const fromPhone = message.from;
 
             if (message.type === "text") {
-              // Text message
-              await processMessage(fromPhone, message.text?.body || "", contactName);
+              await processMessage(
+                fromPhone,
+                message.text?.body || "",
+                contactName
+              );
             } else if (message.type === "audio") {
-              // Voice note
-              await processMessage(fromPhone, "", contactName, "audio", message.audio?.id);
+              await processMessage(
+                fromPhone,
+                "",
+                contactName,
+                "audio",
+                message.audio?.id
+              );
             } else if (message.type === "image") {
-              // Photo → devis
               await processMessage(
                 fromPhone,
                 "",
@@ -639,7 +956,6 @@ export async function POST(request: NextRequest) {
                 message.image?.caption
               );
             } else {
-              // Unsupported type — inform user
               if (fromPhone) {
                 await sendMessage(
                   fromPhone,

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iArtisan — Test Agents</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #1a1a1a; }
+
+.header { background: #1a1a2e; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.header .badge { background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+
+.config-bar { background: white; border-bottom: 1px solid #e0e0e0; padding: 12px 24px; display: flex; gap: 16px; align-items: center; font-size: 13px; }
+.config-bar label { color: #666; }
+.config-bar select, .config-bar input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+
+.agents-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; height: calc(100vh - 110px); }
+
+.agent-col { display: flex; flex-direction: column; border-right: 1px solid #e0e0e0; }
+.agent-col:last-child { border-right: none; }
+
+.agent-header { padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e0e0e0; }
+.agent-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; color: white; }
+.agent-avatar.admin { background: #7C3AED; }
+.agent-avatar.marketing { background: #0891B2; }
+.agent-avatar.commercial { background: #DC2626; }
+.agent-info h3 { font-size: 14px; font-weight: 600; }
+.agent-info span { font-size: 11px; color: #888; }
+
+.chat-area { flex: 1; overflow-y: auto; padding: 12px; background: #f9fafb; display: flex; flex-direction: column; gap: 8px; }
+
+.msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+.msg.user { align-self: flex-end; background: #DCF8C6; border-bottom-right-radius: 4px; }
+.msg.assistant { align-self: flex-start; background: white; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
+.msg.system { align-self: center; background: #FEF3C7; color: #92400E; font-size: 11px; padding: 4px 12px; border-radius: 20px; }
+.msg .meta { font-size: 10px; color: #999; margin-top: 4px; }
+
+.typing { align-self: flex-start; background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px 16px; font-size: 13px; color: #999; }
+.typing span { animation: blink 1.4s infinite; }
+.typing span:nth-child(2) { animation-delay: 0.2s; }
+.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,60%,100% { opacity: 0.3; } 30% { opacity: 1; } }
+
+.input-area { padding: 8px 12px; background: white; border-top: 1px solid #e0e0e0; display: flex; gap: 8px; }
+.input-area input { flex: 1; border: 1px solid #ddd; border-radius: 20px; padding: 8px 16px; font-size: 13px; outline: none; }
+.input-area input:focus { border-color: #7C3AED; }
+.input-area button { background: #1a1a2e; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.input-area button:hover { background: #2d2d4e; }
+.input-area button:disabled { background: #ccc; cursor: not-allowed; }
+
+.scenarios { padding: 8px 12px; background: #fefefe; border-top: 1px solid #f0f0f0; }
+.scenarios summary { font-size: 11px; color: #888; cursor: pointer; }
+.scenario-btns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.scenario-btn { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 16px; padding: 3px 10px; font-size: 11px; cursor: pointer; color: #555; }
+.scenario-btn:hover { background: #e5e7eb; }
+
+.broadcast-bar { padding: 8px 24px; background: #EEF2FF; border-bottom: 1px solid #C7D2FE; display: flex; gap: 8px; align-items: center; }
+.broadcast-bar input { flex: 1; border: 1px solid #C7D2FE; border-radius: 20px; padding: 8px 16px; font-size: 13px; outline: none; }
+.broadcast-bar button { background: #4F46E5; color: white; border: none; border-radius: 20px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.broadcast-bar label { font-size: 12px; color: #4F46E5; font-weight: 500; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>iArtisan — Test des 3 agents</h1>
+  <div class="badge">Mode test</div>
+</div>
+
+<div class="config-bar">
+  <label>Client test :</label>
+  <select id="clientSelect">
+    <option value="test-client-001">SDZ BTP — Ahmed Elsafi (Marseille)</option>
+  </select>
+  <label>API URL :</label>
+  <input id="apiUrl" value="https://app.iartisan.io" style="width: 260px;">
+  <label>Test Key :</label>
+  <input id="testKey" value="iartisan-test-2026" style="width: 160px;" type="password">
+</div>
+
+<div class="broadcast-bar">
+  <label>Envoyer aux 3 :</label>
+  <input id="broadcastInput" placeholder="Meme message aux 3 agents pour comparer..." />
+  <button onclick="broadcastMessage()">Envoyer aux 3</button>
+</div>
+
+<div class="agents-grid">
+  <!-- Marie -->
+  <div class="agent-col" id="col-ADMIN">
+    <div class="agent-header">
+      <div class="agent-avatar admin">M</div>
+      <div class="agent-info">
+        <h3>Marie</h3>
+        <span>Admin / Secretaire</span>
+      </div>
+    </div>
+    <div class="chat-area" id="chat-ADMIN"></div>
+    <details class="scenarios">
+      <summary>Scenarios rapides</summary>
+      <div class="scenario-btns">
+        <button class="scenario-btn" onclick="sendTo('ADMIN','Salut Marie, fais moi un devis pour remplacement chauffe-eau chez M. Dupont')">Devis chauffe-eau</button>
+        <button class="scenario-btn" onclick="sendTo('ADMIN','Resume mes emails de la semaine')">Resume emails</button>
+        <button class="scenario-btn" onclick="sendTo('ADMIN','Relance Mme Martin pour la facture de mars, 850 euros')">Relance facture</button>
+        <button class="scenario-btn" onclick="sendTo('ADMIN','J ai un rdv chantier jeudi 14h chez M. Bernard')">Prise de RDV</button>
+        <button class="scenario-btn" onclick="sendTo('ADMIN','اريد فاتورة لزبوني الجديد')">Test arabe</button>
+      </div>
+    </details>
+    <div class="input-area">
+      <input id="input-ADMIN" placeholder="Message a Marie..." onkeydown="if(event.key==='Enter')sendTo('ADMIN')" />
+      <button onclick="sendTo('ADMIN')">&#9654;</button>
+    </div>
+  </div>
+
+  <!-- Lucas -->
+  <div class="agent-col" id="col-MARKETING">
+    <div class="agent-header">
+      <div class="agent-avatar marketing">L</div>
+      <div class="agent-info">
+        <h3>Lucas</h3>
+        <span>Marketing Digital</span>
+      </div>
+    </div>
+    <div class="chat-area" id="chat-MARKETING"></div>
+    <details class="scenarios">
+      <summary>Scenarios rapides</summary>
+      <div class="scenario-btns">
+        <button class="scenario-btn" onclick="sendTo('MARKETING','Ecris un post Instagram pour un avant/apres renovation salle de bain')">Post Insta</button>
+        <button class="scenario-btn" onclick="sendTo('MARKETING','Un client a laisse un avis 2 etoiles disant que le chantier a pris du retard, reponds')">Avis negatif</button>
+        <button class="scenario-btn" onclick="sendTo('MARKETING','Fais moi le resume de mes stats Google cette semaine')">Stats Google</button>
+        <button class="scenario-btn" onclick="sendTo('MARKETING','Cree ma fiche Google Business')">Fiche Google</button>
+        <button class="scenario-btn" onclick="sendTo('MARKETING','Faz um post em portugues para meus clientes brasileiros')">Test portugais</button>
+      </div>
+    </details>
+    <div class="input-area">
+      <input id="input-MARKETING" placeholder="Message a Lucas..." onkeydown="if(event.key==='Enter')sendTo('MARKETING')" />
+      <button onclick="sendTo('MARKETING')">&#9654;</button>
+    </div>
+  </div>
+
+  <!-- Samir -->
+  <div class="agent-col" id="col-COMMERCIAL">
+    <div class="agent-header">
+      <div class="agent-avatar commercial">S</div>
+      <div class="agent-info">
+        <h3>Samir</h3>
+        <span>Commercial</span>
+      </div>
+    </div>
+    <div class="chat-area" id="chat-COMMERCIAL"></div>
+    <details class="scenarios">
+      <summary>Scenarios rapides</summary>
+      <div class="scenario-btns">
+        <button class="scenario-btn" onclick="sendTo('COMMERCIAL','Trouve moi des prospects plomberie a Marseille')">Prospects Marseille</button>
+        <button class="scenario-btn" onclick="sendTo('COMMERCIAL','Le devis Mme Leroy 3500 euros est en attente depuis 10 jours, relance')">Relance devis</button>
+        <button class="scenario-btn" onclick="sendTo('COMMERCIAL','Y a un appel d offres renovation plomberie ecole a Aix, on repond ?')">Appel d offres</button>
+        <button class="scenario-btn" onclick="sendTo('COMMERCIAL','Le client dit que c est trop cher par rapport a un concurrent')">Objection prix</button>
+        <button class="scenario-btn" onclick="sendTo('COMMERCIAL','Beni sana boru tesisatı konusunda yardımcı olabilir misiniz')">Test turc</button>
+      </div>
+    </details>
+    <div class="input-area">
+      <input id="input-COMMERCIAL" placeholder="Message a Samir..." onkeydown="if(event.key==='Enter')sendTo('COMMERCIAL')" />
+      <button onclick="sendTo('COMMERCIAL')">&#9654;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const chatHistories = { ADMIN: [], MARKETING: [], COMMERCIAL: [] };
+
+function addMessage(agent, role, content, meta) {
+  const chat = document.getElementById('chat-' + agent);
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = content;
+  if (meta) {
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'meta';
+    metaDiv.textContent = meta;
+    div.appendChild(metaDiv);
+  }
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showTyping(agent) {
+  const chat = document.getElementById('chat-' + agent);
+  const div = document.createElement('div');
+  div.className = 'typing';
+  div.id = 'typing-' + agent;
+  div.innerHTML = '<span>.</span><span>.</span><span>.</span>';
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function hideTyping(agent) {
+  const el = document.getElementById('typing-' + agent);
+  if (el) el.remove();
+}
+
+async function sendTo(agent, text) {
+  const input = document.getElementById('input-' + agent);
+  const message = text || input.value.trim();
+  if (!message) return;
+  if (!text) input.value = '';
+
+  const apiUrl = document.getElementById('apiUrl').value.replace(/\/$/, '');
+  const testKey = document.getElementById('testKey').value;
+  const clientId = document.getElementById('clientSelect').value;
+
+  addMessage(agent, 'user', message);
+  chatHistories[agent].push({ role: 'user', content: message });
+
+  showTyping(agent);
+
+  try {
+    const startTime = Date.now();
+    const res = await fetch(apiUrl + '/api/test/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-test-key': testKey },
+      body: JSON.stringify({
+        agent,
+        message,
+        clientId,
+        history: chatHistories[agent].slice(-10),
+      }),
+    });
+
+    hideTyping(agent);
+    const elapsed = Date.now() - startTime;
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      addMessage(agent, 'system', 'Erreur ' + res.status + ': ' + (err.error || 'Unknown'));
+      return;
+    }
+
+    const data = await res.json();
+    const meta = data.model + ' | ' + data.tokensUsed.total + ' tok | ' + (elapsed / 1000).toFixed(1) + 's';
+    addMessage(agent, 'assistant', data.content, meta);
+    chatHistories[agent].push({ role: 'assistant', content: data.content });
+
+  } catch (err) {
+    hideTyping(agent);
+    addMessage(agent, 'system', 'Erreur reseau: ' + err.message);
+  }
+}
+
+function broadcastMessage() {
+  const input = document.getElementById('broadcastInput');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+  sendTo('ADMIN', message);
+  sendTo('MARKETING', message);
+  sendTo('COMMERCIAL', message);
+}
+
+// Add welcome messages
+addMessage('ADMIN', 'system', 'Marie — Prete a tester');
+addMessage('MARKETING', 'system', 'Lucas — Pret a tester');
+addMessage('COMMERCIAL', 'system', 'Samir — Pret a tester');
+</script>
+</body>
+</html>
