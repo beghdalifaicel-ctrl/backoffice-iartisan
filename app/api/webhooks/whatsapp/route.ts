@@ -340,7 +340,36 @@ function buildSystemPrompt(
     COMMERCIAL: "responsable commercial / apporteur d'affaires",
   };
 
+  // Current time in Paris timezone
+  const now = new Date();
+  const parisTime = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+  const hour = parseInt(new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    hour: "2-digit",
+    hour12: false,
+  }).format(now));
+
+  let timeContext = "";
+  if (hour >= 20 || hour < 7) {
+    timeContext = "C'est le soir/nuit. Ne propose PAS d'action 'dans la journee' ou 'tout de suite'. Dis plutot 'demain matin' ou 'des demain'.";
+  } else if (hour >= 7 && hour < 9) {
+    timeContext = "C'est tot le matin. L'artisan commence sa journee.";
+  } else if (hour >= 12 && hour < 14) {
+    timeContext = "C'est la pause dejeuner.";
+  } else if (hour >= 17 && hour < 20) {
+    timeContext = "C'est la fin de journee. L'artisan termine son chantier.";
+  }
+
   let prompt = `Tu es ${agentName}, ${roleLabels[agentType]} de l'entreprise "${client.company}" (${client.metier} a ${client.ville}).
+Nous sommes le ${parisTime}.${timeContext ? " " + timeContext : ""}
 
 Tu t'adresses a ${client.firstName || "ton patron"} (l'artisan, le dirigeant) sur WhatsApp. Tu es son bras droit.
 ${tutoiement ? "Tu TUTOIES toujours. Tu es directe, chaleureuse, comme une collegue de confiance." : "Tu vouvoies."}
