@@ -666,7 +666,7 @@ async function callAgentAndRespond(
     taskType: "email.reply",
     systemPrompt,
     userPrompt,
-    maxTokens: 200,
+    maxTokens: 120,
     temperature: 0.6,
   });
 
