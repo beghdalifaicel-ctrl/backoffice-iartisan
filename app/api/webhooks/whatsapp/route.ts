@@ -1,8 +1,13 @@
 /**
- * WhatsApp Conversational Agent Webhook — v2 Multi-Agent
+ * WhatsApp Conversational Agent Webhook — v3 Team Chat
  *
  * Supports: text, voice (Groq Whisper), images (Mistral Pixtral devis)
- * Multi-agent routing: /marie /lucas /samir commands + auto-detect by keywords + session memory
+ * Team chat mode: multiple agents respond in the same conversation
+ * - Essentiel: Marie seule
+ * - Pro: Marie + Lucas
+ * - Max: Marie + Lucas + Samir
+ *
+ * Each agent responds with emoji+name prefix: "🟣 Marie : ..."
  * Provider: Meta Cloud API only (no Ringover — Ringover = Easydentist only)
  *
  * Setup:
@@ -62,6 +67,12 @@ const AGENT_KEYWORDS: Record<AgentType, string[]> = {
     "sous-traitance", "entreprise generale", "annuaire", "habitatpresto",
     "marge", "fournisseur", "prix fournisseur", "negociation",
   ],
+};
+
+const AGENT_EMOJIS: Record<AgentType, string> = {
+  ADMIN: "🟣",
+  MARKETING: "🟢",
+  COMMERCIAL: "🔴",
 };
 
 // ─── WhatsApp send helpers (Meta Cloud API only) ──────────────
@@ -290,34 +301,33 @@ function parseAgentCommand(text: string): {
   return { command: null, remainingText: text };
 }
 
-function detectAgentFromMessage(text: string): AgentType | null {
+/**
+ * Score ALL agents against the message text.
+ * Returns a map of agent → score. Multi-word keywords score 2, single-word score 1.
+ */
+function scoreAllAgents(text: string): Record<AgentType, number> {
   const lower = text.toLowerCase();
   const scores: Record<AgentType, number> = { ADMIN: 0, MARKETING: 0, COMMERCIAL: 0 };
 
   for (const [agent, keywords] of Object.entries(AGENT_KEYWORDS)) {
     for (const kw of keywords) {
       if (lower.includes(kw)) {
-        scores[agent as AgentType] += kw.includes(" ") ? 2 : 1; // multi-word = stronger signal
+        scores[agent as AgentType] += kw.includes(" ") ? 2 : 1;
       }
     }
   }
 
-  const maxScore = Math.max(...Object.values(scores));
-  if (maxScore === 0) return null;
-
-  const winner = (Object.entries(scores) as [AgentType, number][]).find(
-    ([, s]) => s === maxScore
-  );
-  return winner ? winner[0] : null;
+  return scores;
 }
 
-// ─── Build system prompt from agent config ────────────────────
+// ─── Build system prompt from agent config (team-aware) ──────
 
 function buildSystemPrompt(
   client: any,
   agentType: AgentType,
   agentName: string,
-  agentConfig: any
+  agentConfig: any,
+  teamMembers: { type: AgentType; name: string }[]
 ): string {
   const instructions = agentConfig?.instructions || "";
   const personality = agentConfig?.personality || {};
@@ -346,6 +356,22 @@ STYLE :
 
 `;
 
+  // ─── Team awareness ───
+  const otherMembers = teamMembers.filter((m) => m.type !== agentType);
+  if (otherMembers.length > 0) {
+    const colleagueList = otherMembers
+      .map((m) => `${AGENT_EMOJIS[m.type]} ${m.name} (${roleLabels[m.type]})`)
+      .join(", ");
+    prompt += `EQUIPE : Tu fais partie d'une equipe avec ${colleagueList}.
+Quand ton patron envoie un message, chaque membre de l'equipe concernee repond.
+- Reponds UNIQUEMENT sur ce qui releve de TON domaine d'expertise
+- Ne repete PAS ce que tes collegues pourraient deja dire
+- Sois concis : ton patron lira aussi les reponses de tes collegues
+- Si le message ne te concerne pas du tout, ne reponds pas (le systeme le gere)
+
+`;
+  }
+
   // ─── Agent scope: what this agent can and cannot do ───
   const scopeDescriptions: Record<AgentType, string> = {
     ADMIN: `TON PERIMETRE (ce que tu sais faire) :
@@ -356,8 +382,8 @@ STYLE :
 - Resume d'emails
 
 CE QUI N'EST PAS TON ROLE :
-- Marketing, SEO, reseaux sociaux, fiche Google → dis a ton patron de demander a Lucas (/lucas)
-- Prospection, qualification de leads, annuaires → dis a ton patron de demander a Samir (/samir)`,
+- Marketing, SEO, reseaux sociaux, fiche Google → c'est le domaine de ${otherMembers.find((m) => m.type === "MARKETING")?.name || "Lucas"}
+- Prospection, qualification de leads, annuaires → c'est le domaine de ${otherMembers.find((m) => m.type === "COMMERCIAL")?.name || "Samir"}`,
 
     MARKETING: `TON PERIMETRE (ce que tu sais faire) :
 - Optimiser la fiche Google Business Profile
@@ -367,8 +393,8 @@ CE QUI N'EST PAS TON ROLE :
 - Mise a jour du site web
 
 CE QUI N'EST PAS TON ROLE :
-- Devis, factures, emails clients, relances de paiement → dis a ton patron de demander a Marie (/marie)
-- Prospection, qualification de leads, annuaires → dis a ton patron de demander a Samir (/samir)
+- Devis, factures, emails clients, relances de paiement → c'est le domaine de ${otherMembers.find((m) => m.type === "ADMIN")?.name || "Marie"}
+- Prospection, qualification de leads, annuaires → c'est le domaine de ${otherMembers.find((m) => m.type === "COMMERCIAL")?.name || "Samir"}
 Tu ne generes JAMAIS de devis, facture ou document administratif.`,
 
     COMMERCIAL: `TON PERIMETRE (ce que tu sais faire) :
@@ -380,11 +406,11 @@ Tu ne generes JAMAIS de devis, facture ou document administratif.`,
 - Relancer les impayes
 
 CE QUI N'EST PAS TON ROLE :
-- Gestion des emails courants, devis detailles, factures → dis a ton patron de demander a Marie (/marie)
-- Marketing, SEO, fiche Google, reseaux sociaux → dis a ton patron de demander a Lucas (/lucas)`,
+- Gestion des emails courants, devis detailles, factures → c'est le domaine de ${otherMembers.find((m) => m.type === "ADMIN")?.name || "Marie"}
+- Marketing, SEO, fiche Google, reseaux sociaux → c'est le domaine de ${otherMembers.find((m) => m.type === "MARKETING")?.name || "Lucas"}`,
   };
 
-  prompt += `\n${scopeDescriptions[agentType]}\n\nSi ton patron te demande quelque chose hors de ton perimetre, ne dis PAS "ok je m'en occupe". Dis-lui clairement que ce n'est pas ton domaine et oriente-le vers le bon agent.\n`;
+  prompt += `\n${scopeDescriptions[agentType]}\n\nSi ton patron te demande quelque chose hors de ton perimetre, dis-lui que ton/ta collegue s'en occupe (il/elle repondra dans ce meme fil).\n`;
 
   if (instructions) {
     prompt += `\nINSTRUCTIONS SPECIFIQUES :\n${instructions}\n`;
@@ -551,7 +577,70 @@ async function downloadWhatsAppImage(
   return { base64, mimeType };
 }
 
-// ─── Process a single message ───────────────────────────────
+// ─── Call a single agent and send its prefixed response ─────
+
+async function callAgentAndRespond(
+  phone: string,
+  normalized: string,
+  client: any,
+  agentType: AgentType,
+  messageToProcess: string,
+  teamMembers: { type: AgentType; name: string }[],
+  usePrefix: boolean,
+  warningText: string
+): Promise<{ agentType: AgentType; content: string; model: string; tokensTotal: number; durationMs: number } | null> {
+  const agentConfig = await getAgentConfig(client.id, agentType);
+  const agentName = agentConfig?.display_name || DEFAULT_AGENT_NAMES[agentType];
+  const systemPrompt = buildSystemPrompt(client, agentType, agentName, agentConfig, teamMembers);
+
+  // Get chat history for context
+  const history = await getChatHistory(client.id, normalized, agentType, 10);
+  let userPrompt = messageToProcess;
+
+  if (history.length > 0) {
+    const historyText = history
+      .map(
+        (m: any) =>
+          `${m.role === "user" ? client.firstName || "Patron" : agentName}: ${m.content}`
+      )
+      .join("\n");
+    userPrompt = `[Historique recent]\n${historyText}\n\n[Message actuel]\n${messageToProcess}`;
+  }
+
+  // Save user message
+  await saveChatMessage(client.id, normalized, agentType, "user", messageToProcess);
+
+  // Call LLM
+  const response = await callLLM({
+    taskType: "email.reply",
+    systemPrompt,
+    userPrompt,
+    maxTokens: 1024,
+    temperature: 0.5,
+  });
+
+  const rawContent = response.content || "Desole, je n'ai pas pu traiter ta demande.";
+
+  // Build prefixed message
+  const prefix = usePrefix ? `${AGENT_EMOJIS[agentType]} ${agentName} :\n` : "";
+  const fullReply = prefix + rawContent + warningText;
+
+  // Send via WhatsApp
+  await sendMessage(phone, fullReply);
+
+  // Save assistant response
+  await saveChatMessage(client.id, normalized, agentType, "assistant", rawContent);
+
+  return {
+    agentType,
+    content: rawContent,
+    model: response.model,
+    tokensTotal: response.tokensUsed.total,
+    durationMs: response.durationMs,
+  };
+}
+
+// ─── Process a single message (team chat mode) ────────────────
 
 async function processMessage(
   phone: string,
@@ -577,17 +666,33 @@ async function processMessage(
       return;
     }
 
-    const agentName = await getAgentDisplayName(clientId, "ADMIN");
-    await sendMessage(
-      phone,
-      `Compte lie avec succes !\n\nBonjour ${client.firstName || displayName || ""}, je suis ${agentName}, votre assistante IA pour ${client.company}.\n\nVous pouvez me demander :\n- "Resume mes emails"\n- "Fais un devis pour..."\n- "Relance le client X"\n- Envoyez une PHOTO de chantier pour un devis automatique\n\nCommandes agents :\n/marie — Admin & secretariat\n/lucas — Marketing digital\n/samir — Commercial & prospection\n\nC'est parti !`
-    );
+    // Show team welcome based on plan
+    const plan = "ESSENTIEL" as PlanType; // new clients start on ESSENTIEL
+    const teamAgents = PLAN_AGENTS[plan];
+    const names: string[] = [];
+    for (const at of teamAgents) {
+      names.push(await getAgentDisplayName(clientId, at));
+    }
+
+    let welcomeMsg = `Compte lie avec succes !\n\nBonjour ${client.firstName || displayName || ""} ! `;
+    if (names.length === 1) {
+      welcomeMsg += `Je suis ${names[0]}, votre assistante IA pour ${client.company}.`;
+    } else {
+      welcomeMsg += `Votre equipe IA pour ${client.company} est prete :\n`;
+      for (let i = 0; i < teamAgents.length; i++) {
+        welcomeMsg += `${AGENT_EMOJIS[teamAgents[i]]} ${names[i]}\n`;
+      }
+    }
+
+    welcomeMsg += `\nVous pouvez me demander :\n- "Resume mes emails"\n- "Fais un devis pour..."\n- "Relance le client X"\n- Envoyez une PHOTO de chantier pour un devis automatique\n\nCommandes directes :\n/marie — Admin & secretariat\n/lucas — Marketing digital\n/samir — Commercial & prospection\n\nC'est parti !`;
+
+    await sendMessage(phone, welcomeMsg);
     return;
   }
 
   // ── Aide / Help ──
   const lower = trimmed.toLowerCase();
-  if (["aide", "help", "menu", "bonjour", "hello"].includes(lower)) {
+  if (["aide", "help", "menu"].includes(lower)) {
     const client = await getClientByPhone(normalized);
     if (!client) {
       await sendMessage(
@@ -597,24 +702,31 @@ async function processMessage(
       return;
     }
 
-    const agents = PLAN_AGENTS[client.plan as PlanType] || ["ADMIN"];
-    const activeAgent = await getActiveAgent(normalized, client.id);
-    const activeName = await getAgentDisplayName(client.id, activeAgent);
+    const plan = client.plan as PlanType;
+    const teamAgents = PLAN_AGENTS[plan];
+    const names: string[] = [];
+    for (const at of teamAgents) {
+      names.push(await getAgentDisplayName(client.id, at));
+    }
 
-    let helpText = `Agent actif : ${activeName}\n\n`;
-    helpText += `Commandes :\n`;
+    let helpText = `Votre equipe iArtisan :\n`;
+    for (let i = 0; i < teamAgents.length; i++) {
+      helpText += `${AGENT_EMOJIS[teamAgents[i]]} ${names[i]}\n`;
+    }
+
+    helpText += `\nCommandes directes :\n`;
     helpText += `/marie — Admin (devis, factures, emails, planning)\n`;
-
-    if (agents.includes("MARKETING")) {
+    if (teamAgents.includes("MARKETING")) {
       helpText += `/lucas — Marketing (Google, avis, SEO, reseaux)\n`;
     }
-    if (agents.includes("COMMERCIAL")) {
+    if (teamAgents.includes("COMMERCIAL")) {
       helpText += `/samir — Commercial (prospects, leads, relances)\n`;
     }
 
-    helpText += `\nVocal : envoyez un message vocal, il sera transcrit\n`;
-    helpText += `Photo : envoyez une photo de chantier pour un devis\n`;
-    helpText += `\nEcrivez simplement ce dont vous avez besoin !`;
+    helpText += `\nFonctionnalites :\n`;
+    helpText += `Vocal — envoyez un message vocal, il sera transcrit\n`;
+    helpText += `Photo — envoyez une photo de chantier pour un devis\n`;
+    helpText += `\nEcrivez simplement ce dont vous avez besoin, les agents concernes repondront !`;
     await sendMessage(phone, helpText);
     return;
   }
@@ -623,6 +735,15 @@ async function processMessage(
   const client = await getClientByPhone(normalized);
 
   if (!client) {
+    // Handle "bonjour" / "hello" for unlinked users
+    if (["bonjour", "hello"].includes(lower)) {
+      await sendMessage(
+        phone,
+        "Bienvenue sur iArtisan !\n\nPour connecter vos agents IA, envoyez votre code de liaison.\nVous le trouverez dans votre espace client sur iartisan.io > Onboarding > Canaux.\n\nExemple : link_votre-client-id"
+      );
+      return;
+    }
+
     await sendMessage(
       phone,
       "Bonjour !\n\nJe ne vous reconnais pas encore. Pour commencer :\n1. Connectez-vous sur iartisan.io\n2. Allez dans l'onboarding\n3. Cliquez sur le lien WhatsApp\n\nA tout de suite !"
@@ -646,6 +767,15 @@ async function processMessage(
     return;
   }
 
+  // ── Determine the team ──
+  const teamAgentTypes = PLAN_AGENTS[plan];
+  const teamMembers: { type: AgentType; name: string }[] = [];
+  for (const at of teamAgentTypes) {
+    const name = await getAgentDisplayName(client.id, at);
+    teamMembers.push({ type: at, name });
+  }
+  const isTeam = teamMembers.length > 1;
+
   // ── Handle VOICE messages ──
   if (mediaType === "audio" && mediaId) {
     try {
@@ -662,6 +792,7 @@ async function processMessage(
         phone,
         `(Vocal transcrit : "${transcription.substring(0, 80)}${transcription.length > 80 ? "..." : ""}")`
       );
+      // Falls through to text processing below
     } catch (err: any) {
       console.error("WhatsApp voice transcription error:", err);
       await sendMessage(
@@ -672,18 +803,16 @@ async function processMessage(
     }
   }
 
-  // ── Handle IMAGE messages → Devis par photo ──
+  // ── Handle IMAGE messages → Devis par photo (Marie only) ──
   if (mediaType === "image" && mediaId) {
     try {
-      const agentName = await getAgentDisplayName(client.id, "ADMIN");
-      await sendMessage(phone, `${agentName} analyse votre photo...`);
+      const marieName = teamMembers.find((m) => m.type === "ADMIN")?.name || "Marie";
+      const prefix = isTeam ? `${AGENT_EMOJIS.ADMIN} ${marieName} :\n` : "";
+      await sendMessage(phone, `${prefix}J'analyse ta photo...`);
 
       const imageData = await downloadWhatsAppImage(mediaId);
       if (!imageData) {
-        await sendMessage(
-          phone,
-          "Impossible de telecharger l'image. Reessayez."
-        );
+        await sendMessage(phone, `${prefix}Impossible de telecharger l'image. Reessaye.`);
         return;
       }
 
@@ -700,10 +829,7 @@ async function processMessage(
       );
 
       if (analysis.error) {
-        await sendMessage(
-          phone,
-          `Erreur d'analyse : ${analysis.error}. Reessayez.`
-        );
+        await sendMessage(phone, `${prefix}Erreur d'analyse : ${analysis.error}. Reessaye.`);
         return;
       }
 
@@ -711,7 +837,7 @@ async function processMessage(
         analysis.devisEstimatif ||
         analysis.description ||
         "Analyse terminee mais aucun devis n'a pu etre genere.";
-      await sendMessage(phone, response + (limitCheck.warning || ""));
+      await sendMessage(phone, prefix + response + (limitCheck.warning || ""));
 
       await supabase.from("agent_logs").insert({
         client_id: client.id,
@@ -726,25 +852,21 @@ async function processMessage(
       return;
     } catch (err: any) {
       console.error("WhatsApp image analysis error:", err);
-      await sendMessage(
-        phone,
-        "Erreur lors de l'analyse de l'image. Reessayez."
-      );
+      await sendMessage(phone, "Erreur lors de l'analyse de l'image. Reessayez.");
       return;
     }
   }
 
   // ── Normal text message ──
   if (!text) return;
+  const warningText = limitCheck.warning || "";
 
-  // ── 1) Parse agent command (/marie, /lucas, /samir) ──
+  // ── 1) Parse explicit command (/marie, /lucas, /samir) ──
   const { command: agentCommand, remainingText } = parseAgentCommand(text);
-  let agentType: AgentType;
-  let messageToProcess = text;
 
   if (agentCommand) {
     // Check plan access
-    if (!PLAN_AGENTS[plan].includes(agentCommand)) {
+    if (!teamAgentTypes.includes(agentCommand)) {
       const agentName = DEFAULT_AGENT_NAMES[agentCommand];
       const planNames: Record<PlanType, string> = {
         ESSENTIEL: "Pro (99/mois)",
@@ -758,46 +880,56 @@ async function processMessage(
       return;
     }
 
-    agentType = agentCommand;
-    await setActiveAgent(normalized, client.id, agentType);
+    // Set as active agent for session
+    await setActiveAgent(normalized, client.id, agentCommand);
 
     if (!remainingText) {
-      // Just switching agent, no message
-      const agentName = await getAgentDisplayName(client.id, agentType);
+      // Just switching: only this agent responds with intro
+      const agentName = teamMembers.find((m) => m.type === agentCommand)?.name || DEFAULT_AGENT_NAMES[agentCommand];
+      const prefix = isTeam ? `${AGENT_EMOJIS[agentCommand]} ${agentName} :\n` : "";
       await sendMessage(
         phone,
-        `OK, tu parles maintenant a ${agentName}. Qu'est-ce que je peux faire pour toi ?`
+        `${prefix}OK, c'est moi qui prends la main. Qu'est-ce que je peux faire pour toi ?`
       );
       return;
     }
-    messageToProcess = remainingText;
-  } else {
-    // ── 2) Auto-detect agent by keywords ──
-    const detected = detectAgentFromMessage(text);
-    if (detected && PLAN_AGENTS[plan].includes(detected)) {
-      agentType = detected;
-      await setActiveAgent(normalized, client.id, agentType);
-    } else {
-      // ── 3) Fall back to session agent ──
-      agentType = await getActiveAgent(normalized, client.id);
+
+    // Explicit command with message → ONLY this agent responds
+    const result = await callAgentAndRespond(
+      phone, normalized, client, agentCommand, remainingText,
+      teamMembers, isTeam, warningText
+    );
+
+    if (result) {
+      await supabase.from("agent_logs").insert({
+        client_id: client.id,
+        agent_type: result.agentType,
+        action: "whatsapp.chat",
+        tokens_used: result.tokensTotal,
+        model_used: result.model,
+        duration_ms: result.durationMs,
+        cost_cents: Math.ceil((result.tokensTotal / 1000) * 0.0027 * 100),
+        metadata: {
+          whatsapp_phone: normalized,
+          user_message: remainingText.substring(0, 200),
+          agent_used: result.agentType,
+          mode: "direct_command",
+        },
+      });
     }
+    return;
   }
 
-  // ── Check for devis request (always handled by ADMIN) ──
-  const lowerText = messageToProcess.toLowerCase();
-  const devisKeywords = [
-    "devis",
-    "quote",
-    "estimation",
-    "tarif",
-    "prix",
-    "chiffrage",
-  ];
+  // ── 2) Check for devis request (always handled by Marie) ──
+  const lowerText = text.toLowerCase();
+  const devisKeywords = ["devis", "quote", "estimation", "tarif", "prix", "chiffrage"];
   const isDevisRequest = devisKeywords.some((kw) => lowerText.includes(kw));
 
   if (isDevisRequest) {
     try {
-      await sendMessage(phone, "Je genere votre devis...");
+      const marieName = teamMembers.find((m) => m.type === "ADMIN")?.name || "Marie";
+      const prefix = isTeam ? `${AGENT_EMOJIS.ADMIN} ${marieName} :\n` : "";
+      await sendMessage(phone, `${prefix}Je genere ton devis...`);
 
       const devisResult = await handleDevisGeneration({
         clientId: client.id,
@@ -805,7 +937,7 @@ async function processMessage(
         clientAddress: undefined,
         clientEmail: undefined,
         userPhone: normalized,
-        userMessage: messageToProcess,
+        userMessage: text,
       });
 
       if (devisResult.success && devisResult.documentUrl) {
@@ -813,12 +945,12 @@ async function processMessage(
           phone,
           devisResult.documentUrl,
           devisResult.devisNumber || "devis.pdf",
-          `Devis ${devisResult.devisNumber}\n\nVoici votre devis. Telechargez-le, imprimez-le ou dites-moi si vous voulez des modifications.`
+          `${prefix}Devis ${devisResult.devisNumber}\n\nVoici ton devis. Telecharge-le, imprime-le ou dis-moi si tu veux des modifications.`
         );
 
         const successMsg =
-          `${devisResult.devisNumber} cree avec succes !\n\nLe PDF est envoye. Dites-moi si vous avez des modifications.` +
-          (limitCheck.warning || "");
+          `${prefix}${devisResult.devisNumber} cree avec succes !\n\nLe PDF est envoye. Dis-moi si tu veux des modifications.` +
+          warningText;
         await sendMessage(phone, successMsg);
 
         await supabase.from("agent_logs").insert({
@@ -839,9 +971,9 @@ async function processMessage(
       } else {
         await sendMessage(
           phone,
-          `Impossible de generer le PDF (${devisResult.error}). Je vais vous aider autrement...`
+          `${prefix}Impossible de generer le PDF (${devisResult.error}). Je vais t'aider autrement...`
         );
-        // Fall through to LLM
+        // Fall through to team LLM
       }
     } catch (err: any) {
       console.error("WhatsApp devis generation error:", err);
@@ -853,81 +985,91 @@ async function processMessage(
     }
   }
 
-  // ── Build prompt from agent config ──
-  const agentConfig = await getAgentConfig(client.id, agentType);
-  const agentName =
-    agentConfig?.display_name || DEFAULT_AGENT_NAMES[agentType];
-  const systemPrompt = buildSystemPrompt(
-    client,
-    agentType,
-    agentName,
-    agentConfig
-  );
+  // ── 3) Team chat mode: score all agents and let relevant ones respond ──
+  const scores = scoreAllAgents(text);
 
-  // ── Get chat history for context ──
-  const history = await getChatHistory(client.id, normalized, agentType, 10);
-  let userPrompt = messageToProcess;
+  // Determine which agents should respond
+  let respondingAgents: AgentType[] = [];
 
-  if (history.length > 0) {
-    const historyText = history
-      .map(
-        (m: any) =>
-          `${m.role === "user" ? client.firstName || "Patron" : agentName}: ${m.content}`
-      )
-      .join("\n");
-    userPrompt = `[Historique recent]\n${historyText}\n\n[Message actuel]\n${messageToProcess}`;
+  // Only consider agents in the team
+  const teamScores = teamAgentTypes.map((at) => ({ type: at, score: scores[at] }));
+  const scoredAgents = teamScores.filter((a) => a.score > 0);
+
+  if (scoredAgents.length > 0) {
+    // Agents with relevant keywords respond, sorted by score (highest first)
+    respondingAgents = scoredAgents
+      .sort((a, b) => b.score - a.score)
+      .map((a) => a.type);
+  } else {
+    // Generic message (bonjour, question vague, etc.) → Marie responds
+    respondingAgents = ["ADMIN"];
+
+    // If this is a greeting and it's a team, Marie introduces the team
+    const greetings = ["bonjour", "hello", "salut", "hey", "coucou", "bonsoir"];
+    if (greetings.some((g) => lowerText.includes(g)) && isTeam) {
+      const marieName = teamMembers.find((m) => m.type === "ADMIN")?.name || "Marie";
+      const prefix = `${AGENT_EMOJIS.ADMIN} ${marieName} :\n`;
+      let greeting = `${prefix}Salut ${client.firstName || ""} ! Ton equipe est la :\n`;
+      for (const m of teamMembers) {
+        greeting += `${AGENT_EMOJIS[m.type]} ${m.name}\n`;
+      }
+      greeting += `\nDis-nous ce dont tu as besoin, on s'en occupe !` + warningText;
+      await sendMessage(phone, greeting);
+
+      // Save to history
+      await saveChatMessage(client.id, normalized, "ADMIN", "user", text);
+      await saveChatMessage(client.id, normalized, "ADMIN", "assistant", greeting);
+
+      await supabase.from("agent_logs").insert({
+        client_id: client.id,
+        agent_type: "ADMIN",
+        action: "whatsapp.team_greeting",
+        tokens_used: 0,
+        model_used: "none",
+        duration_ms: 0,
+        cost_cents: 0,
+        metadata: { whatsapp_phone: normalized, team_size: teamMembers.length },
+      });
+      return;
+    }
   }
 
-  // ── Save user message ──
-  await saveChatMessage(
-    client.id,
-    normalized,
-    agentType,
-    "user",
-    messageToProcess
-  );
+  // ── 4) Call each responding agent (sequentially to preserve message order) ──
+  const usePrefix = isTeam; // prefix only if team has > 1 member
 
-  // ── Call LLM ──
-  const response = await callLLM({
-    taskType: "email.reply",
-    systemPrompt,
-    userPrompt,
-    maxTokens: 1024,
-    temperature: 0.5,
-  });
+  for (const agentType of respondingAgents) {
+    try {
+      const result = await callAgentAndRespond(
+        phone, normalized, client, agentType, text,
+        teamMembers, usePrefix,
+        // Only append warning to the LAST agent's message
+        agentType === respondingAgents[respondingAgents.length - 1] ? warningText : ""
+      );
 
-  const reply =
-    (response.content ||
-      "Desole, je n'ai pas pu traiter votre demande. Reessayez.") +
-    (limitCheck.warning || "");
-  await sendMessage(phone, reply);
-
-  // ── Save assistant response ──
-  await saveChatMessage(
-    client.id,
-    normalized,
-    agentType,
-    "assistant",
-    response.content || ""
-  );
-
-  // ── Log ──
-  await supabase.from("agent_logs").insert({
-    client_id: client.id,
-    agent_type: agentType,
-    action: "whatsapp.chat",
-    tokens_used: response.tokensUsed.total,
-    model_used: response.model,
-    duration_ms: response.durationMs,
-    cost_cents: Math.ceil(
-      (response.tokensUsed.total / 1000) * 0.0027 * 100
-    ),
-    metadata: {
-      whatsapp_phone: normalized,
-      user_message: messageToProcess.substring(0, 200),
-      agent_used: agentType,
-    },
-  });
+      if (result) {
+        await supabase.from("agent_logs").insert({
+          client_id: client.id,
+          agent_type: result.agentType,
+          action: "whatsapp.chat",
+          tokens_used: result.tokensTotal,
+          model_used: result.model,
+          duration_ms: result.durationMs,
+          cost_cents: Math.ceil((result.tokensTotal / 1000) * 0.0027 * 100),
+          metadata: {
+            whatsapp_phone: normalized,
+            user_message: text.substring(0, 200),
+            agent_used: result.agentType,
+            mode: "team_chat",
+            responding_agents: respondingAgents,
+            scores,
+          },
+        });
+      }
+    } catch (err: any) {
+      console.error(`Agent ${agentType} response error:`, err);
+      // Continue with other agents even if one fails
+    }
+  }
 }
 
 // ─── GET — Meta webhook verification ────────────────────────
@@ -945,7 +1087,7 @@ export async function GET(request: NextRequest) {
     ok: true,
     channel: "whatsapp",
     status: WHATSAPP_ACCESS_TOKEN ? "configured" : "not_configured",
-    features: ["multi-agent", "voice", "image", "devis-pdf"],
+    features: ["multi-agent", "team-chat", "voice", "image", "devis-pdf"],
   });
 }
 
