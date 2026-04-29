@@ -666,7 +666,7 @@ async function callAgentAndRespond(
     taskType: "email.reply",
     systemPrompt,
     userPrompt,
-    maxTokens: 300,
+    maxTokens: 200,
     temperature: 0.6,
   });
 
@@ -1143,6 +1143,19 @@ export async function GET(request: NextRequest) {
 }
 
 // ─── POST — Incoming messages (Meta Cloud API) ─────────────
+
+
+// ─── Post-processing: strip Markdown from LLM responses ──────
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, "$1")      // **bold** → bold
+    .replace(/\*([^*]+)\*/g, "$1")           // *italic* → italic
+    .replace(/^#{1,6}\s+/gm, "")             // ## headers → text
+    .replace(/^[\-\*]\s+/gm, "")            // - list items → text
+    .replace(/^\d+\.\s+/gm, "")             // 1. numbered → text
+    .replace(/`([^`]+)`/g, "$1")             // `code` → code
+    .trim();
+}
 
 export async function POST(request: NextRequest) {
   let body;

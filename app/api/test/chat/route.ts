@@ -212,6 +212,19 @@ Si on te parle d'avis Google, SEO, reseaux sociaux ou fiche Google → redirige 
   return prompt;
 }
 
+
+// ─── Post-processing: strip Markdown from LLM responses ──────
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, "$1")      // **bold** → bold
+    .replace(/\*([^*]+)\*/g, "$1")           // *italic* → italic
+    .replace(/^#{1,6}\s+/gm, "")             // ## headers → text
+    .replace(/^[\-\*]\s+/gm, "")            // - list items → text
+    .replace(/^\d+\.\s+/gm, "")             // 1. numbered → text
+    .replace(/`([^`]+)`/g, "$1")             // `code` → code
+    .trim();
+}
+
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("x-test-key");
   if (authHeader !== TEST_API_KEY) {
@@ -318,7 +331,7 @@ export async function POST(request: NextRequest) {
       taskType: "email.reply",
       systemPrompt,
       userPrompt,
-      maxTokens: 300,
+      maxTokens: 200,
       temperature: 0.6,
     });
 
@@ -328,7 +341,7 @@ export async function POST(request: NextRequest) {
       agent: agentType,
       agentName,
       emoji: AGENT_EMOJIS[agentType],
-      content: response.content || "Erreur de generation.",
+      content: stripMarkdown(response.content || "Erreur de generation."),
       prefixed: isTeam
         ? `${AGENT_EMOJIS[agentType]} ${agentName} :\n${response.content || "Erreur de generation."}`
         : response.content || "Erreur de generation.",

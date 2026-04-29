@@ -1,0 +1,61 @@
+╔══════════════════════════════════════════════╗
+║  iArtisan — Agent QA Test Suite              ║
+║  35 scenarios | 6 categories                 ║
+║  API: https://app.iartisan.io/api/test/chat   ║
+╚══════════════════════════════════════════════╝
+
+[1/35] ROUTING — Bonjour → Marie repond (defaut)
+[2/35] ROUTING — Devis → Marie
+[3/35] ROUTING — Fiche Google → Lucas
+  ❌ [Lucas] Pas de listes Markdown (- )
+[4/35] ROUTING — Prospection → Samir
+  ❌ [Samir] Reponse concise (< 500 chars)
+[5/35] ROUTING — Facture + SEO → Marie + Lucas
+[6/35] ROUTING — Plan ESSENTIEL → Marie seule
+[7/35] ROUTING — Plan PRO → pas de Samir
+[8/35] ROUTING — Commande /marie directe
+  ❌ [Marie] Reponse concise (< 500 chars)
+  ❌ [Marie] Pas de Markdown gras (**)
+[9/35] SCOPE — Marie recoit question marketing → redirige
+[10/35] SCOPE — Lucas recoit demande devis → redirige
+[11/35] SCOPE — Samir recoit demande facture → redirige
+[12/35] SCOPE — Lucas recoit question prospection → redirige
+  ❌ [Lucas] Pas de listes Markdown (- )
+[13/35] SCOPE — Samir recoit question SEO → redirige
+[14/35] SCOPE — Marie recoit question impaye → redirige ou gere
+[15/35] FORMAT — Pas de Markdown sur question simple
+[16/35] FORMAT — Reponse courte sur sujet complexe
+  ❌ [Lucas] Reponse concise (< 500 chars)
+  ⚠️ [Lucas] Ultra concise (< 300 chars)
+  ❌ [Lucas] Pas de Markdown gras (**)
+[17/35] FORMAT — Pas de liste a puces sur demande multi-sujets
+[18/35] FORMAT — Pas de double prefixe Marie
+[19/35] FORMAT — Pas de double prefixe Lucas
+[20/35] FORMAT — Pas de double prefixe Samir
+[21/35] INTERDICTIONS — Marie ne propose pas d'appeler
+[22/35] INTERDICTIONS — Samir ne propose pas d'appeler les prospects
+  ❌ [Samir] Pas de listes Markdown (- )
+[23/35] INTERDICTIONS — Marie ne promet pas d'action de Samir
+[24/35] INTERDICTIONS — Lucas ne promet pas d'action de Marie
+[25/35] INTERDICTIONS — Aucun agent ne dit 'je vais t appeler'
+[26/35] INTERDICTIONS — Pas de promesse de delai non controlable
+[27/35] CONTEXTE_TEMPOREL — Message generique — pas de promesse temporelle fausse
+[28/35] CONTEXTE_TEMPOREL — Demande urgente — actions numeriques uniquement
+[29/35] CONTEXTE_TEMPOREL — Question planning — reste dans le numerique
+[30/35] CONTEXTE_TEMPOREL — Fin de journee mentionnee — adapte le contexte
+[31/35] STYLE — Tutoiement sur question simple
+  ❌ [Marie] Pas de listes Markdown (- )
+[32/35] STYLE — Question finale interactive
+[33/35] STYLE — Ton chaleureux pas corporate
+[34/35] STYLE — UNE seule action proposee, pas cinq
+[35/35] STYLE — Reponse equipe ultra courte (1-2 phrases)
+
+══════════════════════════════════════════
+  SCORE GLOBAL: 96% (262/272)
+  Critiques: 9 | Warnings: 1
+══════════════════════════════════════════
+
+📄 Rapport HTML: ./qa-report.html
+   Ouvre-le dans un navigateur pour le detail complet.
+
+❌ ECHEC — des assertions critiques ont echoue.
