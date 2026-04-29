@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iArtisan — Rapport QA Agents</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 24px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    th { background: #2c3e50; color: white; padding: 12px 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:hover { background: #f8f9fa; }
+  </style>
+</head>
+<body>
+  <div style="max-width:1400px;margin:0 auto;">
+
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <h1 style="font-size:28px;margin-bottom:8px;">🧪 iArtisan — Rapport QA Agents</h1>
+      <p style="color:#666;">Test automatise le 29/04/2026 22:25:18</p>
+      <p style="color:#666;font-size:13px;">35 scenarios | 39 reponses analysees | 272 assertions</p>
+    </div>
+
+    <!-- Score global -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="display:inline-block;background:white;border-radius:16px;padding:24px 48px;box-shadow:0 2px 12px rgba(0,0,0,0.1);">
+        <div style="font-size:56px;font-weight:bold;color:#e74c3c;">96%</div>
+        <div style="font-size:14px;color:#666;margin-top:4px;">Score global</div>
+        <div style="font-size:12px;color:#999;margin-top:4px;">262 pass | 9 critiques | 1 warnings</div>
+      </div>
+    </div>
+
+    <!-- Category cards -->
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:32px;">
+      
+      <div style="background:white;border-radius:12px;padding:20px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
+        <div style="font-size:14px;color:#666;margin-bottom:8px;">Routing</div>
+        <div style="font-size:32px;font-weight:bold;color:#e74c3c;">98%</div>
+        <div style="font-size:11px;color:#999;margin-top:4px;">88/90 checks</div>
+        <div style="font-size:11px;color:#e74c3c;margin-top:2px;">2 critiques</div>
+        
+      </div>
+      <div style="background:white;border-radius:12px;padding:20px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
+        <div style="font-size:14px;color:#666;margin-bottom:8px;">Perimetre</div>
+        <div style="font-size:32px;font-weight:bold;color:#e74c3c;">96%</div>
+        <div style="font-size:11px;color:#999;margin-top:4px;">51/53 checks</div>
+        <div style="font-size:11px;color:#e74c3c;margin-top:2px;">2 critiques</div>
+        
+      </div>
+      <div style="background:white;border-radius:12px;padding:20px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
+        <div style="font-size:14px;color:#666;margin-bottom:8px;">Format</div>
+        <div style="font-size:32px;font-weight:bold;color:#e74c3c;">77%</div>
+        <div style="font-size:11px;color:#999;margin-top:4px;">17/22 checks</div>
+        <div style="font-size:11px;color:#e74c3c;margin-top:2px;">4 critiques</div>
+        <div style="font-size:11px;color:#f39c12;margin-top:2px;">1 warnings</div>
+      </div>
+      <div style="background:white;border-radius:12px;padding:20px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
+        <div style="font-size:14px;color:#666;margin-bottom:8px;">Interdictions</div>
+        <div style="font-size:32px;font-weight:bold;color:#e74c3c;">98%</div>
+        <div style="font-size:11px;color:#999;margin-top:4px;">45/46 checks</div>
+        <div style="font-size:11px;color:#e74c3c;margin-top:2px;">1 critiques</div>
+        
+      </div>
+      <div style="background:white;border-radius:12px;padding:20px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
+        <div style="font-size:14px;color:#666;margin-bottom:8px;">Contexte temps</div>
+        <div style="font-size:32px;font-weight:bold;color:#27ae60;">100%</div>
+        <div style="font-size:11px;color:#999;margin-top:4px;">32/32 checks</div>
+        
+        
+      </div>
+      <div style="background:white;border-radius:12px;padding:20px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
+        <div style="font-size:14px;color:#666;margin-bottom:8px;">Style</div>
+        <div style="font-size:32px;font-weight:bold;color:#27ae60;">100%</div>
+        <div style="font-size:11px;color:#999;margin-top:4px;">29/29 checks</div>
+        
+        
+      </div>
+    </div>
+
+    <!-- Detail table -->
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Categorie</th>
+          <th>Scenario</th>
+          <th>Agent</th>
+          <th>Statut</th>
+          <th>Score</th>
+          <th>Echecs</th>
+          <th>Reponse</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">1</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Bonjour → Marie repond (defaut)</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Salut ! T’es encore debout à cette heure ? 😅
+
+J’ai vérifié les mails avant de fermer : 2 devis en attente de signature (Dupont et Martin), et une facture impayée depuis 8j (Leroy). Tu veux que je te fasse un résumé détaillé demain matin ?">Salut ! T’es encore debout à cette heure ? 😅
+
+J’ai vérifié les mails avant de fermer : 2 devis en attente de signature ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">2</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Devis → Marie</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Tu m'envoies le vocal ou la photo des travaux et je te prépare une base.
+
+C'est pour quel client ? (nom + adresse si tu l'as)">Tu m'envoies le vocal ou la photo des travaux et je te prépare une base.
+
+C'est pour quel client ? (nom + adresse si tu ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">3</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Fiche Google → Lucas</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">8/9</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Pas de listes Markdown (- )</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Super, on va booster ça.
+
+D’abord, tu veux qu’on commence par quoi ?
+- Les photos (avant/après, équipe, chantier)
+- Les mots-clés et la description
+- Les avis clients (réponses et relances)
+
+Dis-moi ton top 1 et je prépare demain matin.">Super, on va booster ça.
+
+D’abord, tu veux qu’on commence par quoi ?
+- Les photos (avant/après, équipe, chantier)
+- Les ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">4</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Prospection → Samir</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Samir a une liste de prospects chauds dans le 13ème et 14ème, il peut te les envoyer direct.
+
+Tu veux que je lui demande de te les partager demain matin ? (oui/non)">Samir a une liste de prospects chauds dans le 13ème et 14ème, il peut te les envoyer direct.
+
+Tu veux que je lui demande...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">5</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Facture + SEO → Marie + Lucas</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Pour les factures impayées :
+Je vais envoyer un rappel poli demain matin aux clients en retard. Tu veux que je commence par les plus anciennes ou celles >7 jours ?
+
+Pour le SEO c'est Lucas qui gère. Tu veux que je lui demande de te proposer un plan d'action ?">Pour les factures impayées :
+Je vais envoyer un rappel poli demain matin aux clients en retard. Tu veux que je commence ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">5</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Facture + SEO → Marie + Lucas</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Pour les factures impayées, c'est Marie qui gère ça ! Je lui dis de te contacter demain matin pour faire le point.
+
+Pour le SEO, je peux te proposer un audit rapide de ton site et de ta fiche Google. Tu veux que je commence par quoi ? Le site ou Google ?">Pour les factures impayées, c'est Marie qui gère ça ! Je lui dis de te contacter demain matin pour faire le point.
+
+Pour...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">5</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Facture + SEO → Marie + Lucas</td>
+        <td style="padding:8px;font-size:13px;">Samir</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Pour les impayés :
+Je peux relancer les clients en retard par email demain matin. Tu veux que je commence par les plus anciens ou ceux avec les montants les plus élevés ?
+
+Pour le SEO :
+Ca c'est pour Lucas, il gere ! Je lui dis de te proposer un plan d'action ?">Pour les impayés :
+Je peux relancer les clients en retard par email demain matin. Tu veux que je commence par les plus a...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">6</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Plan ESSENTIEL → Marie seule</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ca c'est pour Lucas, il gere ! Tu veux que je lui demande de te proposer des optimisations demain matin ?">Ca c'est pour Lucas, il gere ! Tu veux que je lui demande de te proposer des optimisations demain matin ?</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">7</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Plan PRO → pas de Samir</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ca c'est pour Samir, il gere ! Tu veux que je lui demande de te proposer une liste de prospects qualifiés demain matin ?">Ca c'est pour Samir, il gere ! Tu veux que je lui demande de te proposer une liste de prospects qualifiés demain matin ?</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">8</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">ROUTING</span></td>
+        <td style="padding:8px;font-size:13px;">Commande /marie directe</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">8/9</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Reponse concise (< 500 chars)</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Voici les 3 emails urgents à traiter demain matin :
+
+1. M. Dupont (chantier rue Saint-Pierre) : demande un devis complémentaire pour une isolation en plus de la rénovation salle de bain. Il attend ton retour avant de signer l’original.
+→ Tu veux que je prépare une estimation basée sur les 25m² qu’il a mentionnés ?
+
+2. Fournisseur Leroy : relance pour le paiement de la facture n°2026-045 (3 200€, échéance hier). Menace de suspendre le compte pro si pas de règlement sous 48h.
+→ Je peux leur répondre que le virement part demain matin ?
+
+3. Mairie de Marseille (service urbanisme) : demande les plans modifiés du chantier Lavandou (permis en cours). Échéance vendredi pour éviter un rejet.
+→ Tu préfères que je transfère directement à l’architecte ou tu gères ?
+
+Le reste (12 emails) est info/newsletter. Je te fais un résumé complet demain matin avec ton briefing si besoin.
+
+Tu veux qu’on commence par lequel ?">Voici les 3 emails urgents à traiter demain matin :
+
+1. M. Dupont (chantier rue Saint-Pierre) : demande un devis complém...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">9</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">SCOPE</span></td>
+        <td style="padding:8px;font-size:13px;">Marie recoit question marketing → redirige</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ca c'est pour Lucas, il gere ! Tu veux que je lui demande de te proposer un plan demain matin ?">Ca c'est pour Lucas, il gere ! Tu veux que je lui demande de te proposer un plan demain matin ?</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">10</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">SCOPE</span></td>
+        <td style="padding:8px;font-size:13px;">Lucas recoit demande devis → redirige</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ca c'est pour Marie, elle gère !
+
+Tu veux que je lui demande de te le préparer pour demain matin ?">Ca c'est pour Marie, elle gère !
+
+Tu veux que je lui demande de te le préparer pour demain matin ?</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">11</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">SCOPE</span></td>
+        <td style="padding:8px;font-size:13px;">Samir recoit demande facture → redirige</td>
+        <td style="padding:8px;font-size:13px;">Samir</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ca c'est pour Marie, elle gère ! Je lui dis de la préparer demain matin.
+
+Tu veux que je lui demande d'ajouter qqch en particulier ?">Ca c'est pour Marie, elle gère ! Je lui dis de la préparer demain matin.
+
+Tu veux que je lui demande d'ajouter qqch en p...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">12</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">SCOPE</span></td>
+        <td style="padding:8px;font-size:13px;">Lucas recoit question prospection → redirige</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">8/9</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Pas de listes Markdown (- )</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Je peux pas prospecter directement, c’est le job de Samir 🔴
+
+Par contre je peux booster ta visibilité pour qu’on te trouve TOUT SEUL :
+- Optimiser ta fiche Google pour les recherches &quot;artisan BTP Marseille 13&quot;
+- Publier des posts ciblés sur les quartiers chauds (8e, 9e, 15e...)
+- Lancer un appel à avis clients pour monter en crédibilité
+
+Tu préfères qu’on commence par quoi demain matin ? (ou je fais les 3 en parallèle)">Je peux pas prospecter directement, c’est le job de Samir 🔴
+
+Par contre je peux booster ta visibilité pour qu’on te tro...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">13</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">SCOPE</span></td>
+        <td style="padding:8px;font-size:13px;">Samir recoit question SEO → redirige</td>
+        <td style="padding:8px;font-size:13px;">Samir</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">8/9</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Redirige vers un collegue</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ahmed, j’ai regardé : on a 17 avis avec une note de 4,3/5. Pas mal, mais on peut mieux faire.
+
+Tu veux que je prépare une campagne pour en avoir plus ? Genre un email aux anciens clients avec un lien direct pour noter ? Ou tu préfères cibler les clients récents ?
+
+Dis-moi comment tu veux qu’on s’y prenne.">Ahmed, j’ai regardé : on a 17 avis avec une note de 4,3/5. Pas mal, mais on peut mieux faire.
+
+Tu veux que je prépare un...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">14</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">SCOPE</span></td>
+        <td style="padding:8px;font-size:13px;">Marie recoit question impaye → redirige ou gere</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">8/8</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Je peux envoyer un email de relance formel demain matin avec copie du devis et mention des pénalités de retard.
+
+Tu veux que je reste polie ou que je monte en pression ?">Je peux envoyer un email de relance formel demain matin avec copie du devis et mention des pénalités de retard.
+
+Tu veux...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">15</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">FORMAT</span></td>
+        <td style="padding:8px;font-size:13px;">Pas de Markdown sur question simple</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">4/5</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Pas de listes Markdown (- )</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Demain matin t’as 3 RDV :
+- 8h30 : Chantier Martin (suivi carrelage salle de bain)
+- 11h : RDV client Mme Lefèvre (devis cuisine)
+- 14h : Fournisseur Leroy Merlin (livraison matériaux)
+
+Et 2 devis en attente de signature (Dupont et Bernard). Tu veux que je te prépare un rappel pour les relancer ?">Demain matin t’as 3 RDV :
+- 8h30 : Chantier Martin (suivi carrelage salle de bain)
+- 11h : RDV client Mme Lefèvre (devis...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">16</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">FORMAT</span></td>
+        <td style="padding:8px;font-size:13px;">Reponse courte sur sujet complexe</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">2/5</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Reponse concise (< 500 chars)</span><br><span style="color:#f39c12">Ultra concise (< 300 chars)</span><br><span style="color:#e74c3c">Pas de Markdown gras (**)</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ahmed, en 2 mots : c’est ce qui fait que ton entreprise apparait quand un client cherche &quot;artisan BTP Marseille&quot; ou &quot;maçon près de chez moi&quot; sur Google.
+
+Le SEO local, c’est 3 piliers :
+1. Ta **fiche Google** (le plus important) : complète, à jour, avec photos et avis.
+2. Ton **site web** : avec tes coordonnées claires, les mots-clés de ton métier (&quot;rénovation salle de bain Marseille&quot;) et des avis clients.
+3. La **cohérence** : même nom, adresse, téléphone partout (site, réseaux, annuaires).
+
+Tu veux que je te montre comment on optimise ta fiche Google en priorité ? Ou tu préfères qu’on voit d’abord ton site ?">Ahmed, en 2 mots : c’est ce qui fait que ton entreprise apparait quand un client cherche "artisan BTP Marseille" ou "maç...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">17</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">FORMAT</span></td>
+        <td style="padding:8px;font-size:13px;">Pas de liste a puces sur demande multi-sujets</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">2/3</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Pas de listes Markdown (- )</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ce soir ? Je peux :
+
+- Préparer tes devis/factures en attente pour demain matin
+- Faire un point sur les relances clients à lancer (paiements/devis)
+- Résumer les emails urgents que t’as pas eus le temps de lire
+
+Tu veux que je commence par quoi ? (ou tu préfères qu’on voit ça demain au réveil ?)">Ce soir ? Je peux :
+
+- Préparer tes devis/factures en attente pour demain matin
+- Faire un point sur les relances client...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">18</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">FORMAT</span></td>
+        <td style="padding:8px;font-size:13px;">Pas de double prefixe Marie</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Salut ! Oui impec, juste en train de finaliser les factures du mois. T’as besoin de quelque chose pour demain matin ? 😊">Salut ! Oui impec, juste en train de finaliser les factures du mois. T’as besoin de quelque chose pour demain matin ? 😊</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">19</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">FORMAT</span></td>
+        <td style="padding:8px;font-size:13px;">Pas de double prefixe Lucas</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Bien sûr, dis-moi ce qui te tracasse. C’est pour un truc en ligne ou un chantier ? 👀">Bien sûr, dis-moi ce qui te tracasse. C’est pour un truc en ligne ou un chantier ? 👀</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">20</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">FORMAT</span></td>
+        <td style="padding:8px;font-size:13px;">Pas de double prefixe Samir</td>
+        <td style="padding:8px;font-size:13px;">Samir</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Dis-moi, c'est pour un client, une prospection ou un truc en cours ? Je peux te préparer un truc pour demain matin.">Dis-moi, c'est pour un client, une prospection ou un truc en cours ? Je peux te préparer un truc pour demain matin.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">21</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">INTERDICTIONS</span></td>
+        <td style="padding:8px;font-size:13px;">Marie ne propose pas d'appeler</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">10/10</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Je viens de vérifier : facture n°2026-0456 de 3 200€ émise le 1er mars, toujours impayée.
+
+Je peux lui envoyer un email de relance demain matin avec copie à toi. Tu veux que je mentionne des pénalités de retard (1,5%/mois) ou je reste soft pour l'instant ?">Je viens de vérifier : facture n°2026-0456 de 3 200€ émise le 1er mars, toujours impayée.
+
+Je peux lui envoyer un email ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">22</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">INTERDICTIONS</span></td>
+        <td style="padding:8px;font-size:13px;">Samir ne propose pas d'appeler les prospects</td>
+        <td style="padding:8px;font-size:13px;">Samir</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">❌ FAIL</span></td>
+        <td style="padding:8px;font-size:12px;">9/10</td>
+        <td style="padding:8px;font-size:12px;"><span style="color:#e74c3c">Pas de listes Markdown (- )</span></td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Je les divise en 2 groupes :
+- 5 B2C (particuliers) : je leur envoie un message perso demain matin via WhatsApp/SMS avec un exemple de réal recent + question ouverte (&quot;votre projet avance ?&quot;).
+- 5 B2B (pros) : je prépare 5 emails courts avec références ciblées (1 par prospect).
+
+Tu veux que je te montre les templates avant envoi ? Ou je lance direct demain ?">Je les divise en 2 groupes :
+- 5 B2C (particuliers) : je leur envoie un message perso demain matin via WhatsApp/SMS avec...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">23</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">INTERDICTIONS</span></td>
+        <td style="padding:8px;font-size:13px;">Marie ne promet pas d'action de Samir</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ca c'est pour Samir, il gere ! Je lui dis de te proposer un plan d'action demain matin ?
+
+(PS : tu veux que je note un objectif précis ? Ex : &quot;3 chantiers >5k€/mois&quot; ou &quot;cibler les copros&quot; ?)">Ca c'est pour Samir, il gere ! Je lui dis de te proposer un plan d'action demain matin ?
+
+(PS : tu veux que je note un o...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">24</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">INTERDICTIONS</span></td>
+        <td style="padding:8px;font-size:13px;">Lucas ne promet pas d'action de Marie</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ca c'est pour Marie, elle gère ! Tu veux que je lui demande de le faire demain matin ?">Ca c'est pour Marie, elle gère ! Tu veux que je lui demande de le faire demain matin ?</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">25</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">INTERDICTIONS</span></td>
+        <td style="padding:8px;font-size:13px;">Aucun agent ne dit 'je vais t appeler'</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">10/10</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ahmed, je suis là. Tu veux qu’on en parle par vocal ou tu préfères que je te fasse un résumé écrit des points urgents ?
+
+Dis-moi juste &quot;vocal&quot; ou &quot;écris&quot; et je m’adapte.">Ahmed, je suis là. Tu veux qu’on en parle par vocal ou tu préfères que je te fasse un résumé écrit des points urgents ?
+...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">26</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">INTERDICTIONS</span></td>
+        <td style="padding:8px;font-size:13px;">Pas de promesse de delai non controlable</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">10/10</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Ahmed, tu parles de quel dossier ? Le devis Martin ou les factures en retard ?
+
+(Je te fais un point demain matin si tu veux, avec les priorités)">Ahmed, tu parles de quel dossier ? Le devis Martin ou les factures en retard ?
+
+(Je te fais un point demain matin si tu ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">27</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">CONTEXTE_TEMPOREL</span></td>
+        <td style="padding:8px;font-size:13px;">Message generique — pas de promesse temporelle fausse</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="T’as 3 urgences ce soir :
+
+1. Devis Martin (photo du carrelage) → en attente depuis 48h, il relance par mail
+2. Facture Dupont (chantier rue Bleue) → impayée depuis 10j, il menace de bloquer le solde
+3. RDV demain 8h chez Leroy → t’as noté &quot;prépare contrat&quot; mais j’ai rien en dossier
+
+On attaque quoi en premier ? (1/2/3)">T’as 3 urgences ce soir :
+
+1. Devis Martin (photo du carrelage) → en attente depuis 48h, il relance par mail
+2. Facture ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">28</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">CONTEXTE_TEMPOREL</span></td>
+        <td style="padding:8px;font-size:13px;">Demande urgente — actions numeriques uniquement</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">10/10</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Je note l'urgence. Dis-moi exactement ce qui se passe en 1 phrase, je te propose une action directe après.
+
+C'est lié à un client ? Un chantier ? Une facture ?">Je note l'urgence. Dis-moi exactement ce qui se passe en 1 phrase, je te propose une action directe après.
+
+C'est lié à ...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">29</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">CONTEXTE_TEMPOREL</span></td>
+        <td style="padding:8px;font-size:13px;">Question planning — reste dans le numerique</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Demain matin je te fais un brief complet avec les urgences (2 factures en retard, 3 devis en attente de signature).
+
+D’ici là, tu veux que je priorise quoi ? Les relances clients ou la prep des docs pour le chantier Dupont ?">Demain matin je te fais un brief complet avec les urgences (2 factures en retard, 3 devis en attente de signature).
+
+D’i...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">30</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">CONTEXTE_TEMPOREL</span></td>
+        <td style="padding:8px;font-size:13px;">Fin de journee mentionnee — adapte le contexte</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">4/4</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="T’as 3 devis en attente là :
+
+- Dupont (salle de bain) : envoyé il y a 12j, relancé 2x
+- Martin (terrasse) : envoyé il y a 8j, 1 relance
+- Leroy (électricité) : envoyé hier, pas encore relancé
+
+Tu veux que je relance qui demain matin ?">T’as 3 devis en attente là :
+
+- Dupont (salle de bain) : envoyé il y a 12j, relancé 2x
+- Martin (terrasse) : envoyé il y...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">31</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">STYLE</span></td>
+        <td style="padding:8px;font-size:13px;">Tutoiement sur question simple</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">9/9</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="On a 3 urgences à régler demain matin :
+
+1. Le devis Martin (5.2k€) est toujours non signé depuis 15j → dernier rappel avant de le classer perdu. Je relance ?
+
+2. Facture Leblanc (3.8k€) en retard de 10j → je leur envoie un mail poli avec pénalité de retard ?
+
+3. Chantier Dubois : le client a envoyé 2 messages ce soir pour savoir où en est l’isolation. Tu veux que je lui réponds avec les photos que t’as prises hier ? (je les ai sous la main)
+
+Par quoi on commence ? (1/2/3)">On a 3 urgences à régler demain matin :
+
+1. Le devis Martin (5.2k€) est toujours non signé depuis 15j → dernier rappel a...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">32</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">STYLE</span></td>
+        <td style="padding:8px;font-size:13px;">Question finale interactive</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Je l’ai lu. C’est pour une rénovation salle de bain à Allauch, budget pas précisé mais ils veulent un devis &quot;rapide&quot;.
+
+Tu veux que je fasse un devis estimatif en me basant sur les photos qu’il a jointes ? (j’ai vérifié, elles sont claires)">Je l’ai lu. C’est pour une rénovation salle de bain à Allauch, budget pas précisé mais ils veulent un devis "rapide".
+
+T...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">32</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">STYLE</span></td>
+        <td style="padding:8px;font-size:13px;">Question finale interactive</td>
+        <td style="padding:8px;font-size:13px;">Samir</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Tu veux que je regarde l'email et que je te fasse un résumé avec le scoring chaud/tiède/froid ?
+
+Ou tu préfères que je prépare directement une réponse pour toi à valider ?">Tu veux que je regarde l'email et que je te fasse un résumé avec le scoring chaud/tiède/froid ?
+
+Ou tu préfères que je p...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">33</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">STYLE</span></td>
+        <td style="padding:8px;font-size:13px;">Ton chaleureux pas corporate</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">4/4</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Tranquille, j’ai tout sous contrôle 😉
+
+Les 3 devis en attente sont relancés demain matin (Dupont, Martin, Leroux).
+Tu veux que je te fasse un point sur les factures impayées aussi ?">Tranquille, j’ai tout sous contrôle 😉
+
+Les 3 devis en attente sont relancés demain matin (Dupont, Martin, Leroux).
+Tu v...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">34</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">STYLE</span></td>
+        <td style="padding:8px;font-size:13px;">UNE seule action proposee, pas cinq</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">4/4</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Super, on va booster ça. T’as déjà une fiche Google My Business ou je dois tout créer de zéro ?
+
+(Je peux aussi faire un audit rapide de ce qui existe déjà si tu préfères)">Super, on va booster ça. T’as déjà une fiche Google My Business ou je dois tout créer de zéro ?
+
+(Je peux aussi faire un...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">35</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">STYLE</span></td>
+        <td style="padding:8px;font-size:13px;">Reponse equipe ultra courte (1-2 phrases)</td>
+        <td style="padding:8px;font-size:13px;">Lucas</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Pour les factures, c'est Marie qui gère ça. Je lui dis de te faire un point demain matin ?
+
+Pour ta fiche Google, je peux la mettre à jour ce soir. Tu veux que je commence par quoi ? Les horaires, les photos ou les services ?">Pour les factures, c'est Marie qui gère ça. Je lui dis de te faire un point demain matin ?
+
+Pour ta fiche Google, je peu...</td>
+      </tr>
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;font-size:13px;">35</td>
+        <td style="padding:8px;font-size:13px;"><span style="background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:11px;">STYLE</span></td>
+        <td style="padding:8px;font-size:13px;">Reponse equipe ultra courte (1-2 phrases)</td>
+        <td style="padding:8px;font-size:13px;">Marie</td>
+        <td style="padding:8px;text-align:center;"><span style="background:#27ae60;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:bold;">✅ PASS</span></td>
+        <td style="padding:8px;font-size:12px;">3/3</td>
+        <td style="padding:8px;font-size:12px;">-</td>
+        <td style="padding:8px;font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Pour les factures en retard je te fais un point demain matin avec les montants et clients à relancer.
+
+Pour la fiche Google c'est Lucas qui gère, tu veux que je lui demande de la mettre à jour demain ?">Pour les factures en retard je te fais un point demain matin avec les montants et clients à relancer.
+
+Pour la fiche Goo...</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <!-- Legend -->
+    <div style="margin-top:24px;text-align:center;font-size:12px;color:#999;">
+      ✅ PASS = toutes les assertions passent | ⚠️ WARN = warnings seulement | ❌ FAIL = au moins 1 assertion critique echouee
+    </div>
+
+  </div>
+</body>
+</html>
