@@ -294,6 +294,76 @@
     overflow-y: auto;
     white-space: pre-wrap;
   }
+
+  /* Artisan profile */
+  .profile-card {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+
+  .profile-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+
+  .preset-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .preset-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+  .preset-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+  .profile-fields { display: flex; flex-direction: column; gap: 6px; }
+
+  .profile-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .profile-field label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    width: 62px;
+    flex-shrink: 0;
+  }
+
+  .profile-field input {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    background: #fff;
+    outline: none;
+  }
+
+  .profile-field input:focus { border-color: #3b82f6; }
+
+  .profile-name {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  .profile-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
 </style>
 </head>
 <body>
@@ -328,7 +398,8 @@
 <div class="main">
   <div class="chat-area">
     <div class="chat-header">
-      <span style="font-weight: 600; font-size: 14px;">Equipe</span>
+      <span id="chatArtisanLabel" style="font-weight: 600; font-size: 14px;">🔨 Ahmed — Plombier</span>
+      <span style="color: var(--muted); font-size: 12px; margin: 0 8px;">|</span>
       <div class="team-badges" id="teamBadges">
         <span class="badge admin">🟣 Marie</span>
         <span class="badge marketing">🟢 Lucas</span>
@@ -345,6 +416,31 @@
   </div>
 
   <div class="sidebar">
+    <h3>Profil artisan</h3>
+    <div class="profile-card">
+      <div class="profile-presets" id="profilePresets"></div>
+      <div class="profile-fields">
+        <div class="profile-field">
+          <label>Prenom</label>
+          <input id="artisanFirstName" value="Ahmed" onchange="updateArtisanProfile()">
+        </div>
+        <div class="profile-field">
+          <label>Entreprise</label>
+          <input id="artisanCompany" value="Sdz Plomberie" onchange="updateArtisanProfile()">
+        </div>
+        <div class="profile-field">
+          <label>Metier</label>
+          <input id="artisanMetier" value="Plomberie" onchange="updateArtisanProfile()">
+        </div>
+        <div class="profile-field">
+          <label>Ville</label>
+          <input id="artisanVille" value="Paris" onchange="updateArtisanProfile()">
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
     <h3>Scenarios de test</h3>
 
     <button class="scenario-btn" onclick="testScenario('Bonjour, comment ca va ?')">
@@ -412,6 +508,71 @@
   const API_COMMANDS = { '/marie': 'ADMIN', '/lucas': 'MARKETING', '/samir': 'COMMERCIAL' };
   let currentPlan = 'PRO';
   let chatHistory = [];
+  let activePreset = 0;
+
+  // Artisan presets — different trades to test agent behavior
+  const ARTISAN_PRESETS = [
+    { firstName: 'Ahmed',    company: 'Sdz Plomberie',         metier: 'Plomberie',                ville: 'Paris',      icon: '🔧' },
+    { firstName: 'Sophie',   company: 'Elec Sophie',           metier: 'Electricite',              ville: 'Lyon',       icon: '⚡' },
+    { firstName: 'Jean-Marc',company: 'Maconnerie JM',         metier: 'Maconnerie / Gros oeuvre', ville: 'Marseille',  icon: '🧱' },
+    { firstName: 'Karim',    company: 'K Peinture Deco',       metier: 'Peinture / Decoration',    ville: 'Bordeaux',   icon: '🎨' },
+    { firstName: 'Pierre',   company: 'Couverture Pierre',     metier: 'Couverture / Toiture',     ville: 'Toulouse',   icon: '🏠' },
+    { firstName: 'Marie-Laure', company: 'ML Menuiserie',      metier: 'Menuiserie',               ville: 'Nantes',     icon: '🪵' },
+    { firstName: 'David',    company: 'David Carrelage',       metier: 'Carrelage / Faience',      ville: 'Strasbourg', icon: '🔲' },
+    { firstName: 'Nadia',    company: 'Nadia Clim Services',   metier: 'Climatisation / CVC',      ville: 'Nice',       icon: '❄️' },
+    { firstName: 'Thomas',   company: 'Renov Express Thomas',  metier: 'Renovation generale',      ville: 'Lille',      icon: '🏗️' },
+    { firstName: 'Fatima',   company: 'Fatima Paysage',        metier: 'Paysagiste / Espaces verts', ville: 'Montpellier', icon: '🌿' },
+  ];
+
+  function renderPresets() {
+    const container = document.getElementById('profilePresets');
+    container.innerHTML = ARTISAN_PRESETS.map((p, i) =>
+      `<button class="preset-btn ${i === activePreset ? 'active' : ''}" onclick="selectPreset(${i})" title="${p.firstName} — ${p.metier}, ${p.ville}">${p.icon} ${p.firstName.split('-')[0]}</button>`
+    ).join('');
+  }
+
+  function selectPreset(index) {
+    activePreset = index;
+    const p = ARTISAN_PRESETS[index];
+    document.getElementById('artisanFirstName').value = p.firstName;
+    document.getElementById('artisanCompany').value = p.company;
+    document.getElementById('artisanMetier').value = p.metier;
+    document.getElementById('artisanVille').value = p.ville;
+    renderPresets();
+    updateChatHeader();
+    // Clear chat for new artisan
+    chatHistory = [];
+    document.getElementById('messages').innerHTML = '';
+    addSystemMessage(`Artisan change : ${p.icon} ${p.firstName} — ${p.metier} a ${p.ville}`);
+  }
+
+  function getClientOverride() {
+    return {
+      firstName: document.getElementById('artisanFirstName').value.trim(),
+      company: document.getElementById('artisanCompany').value.trim(),
+      metier: document.getElementById('artisanMetier').value.trim(),
+      ville: document.getElementById('artisanVille').value.trim(),
+    };
+  }
+
+  function updateArtisanProfile() {
+    // Deselect presets if user edited fields manually
+    const current = getClientOverride();
+    const match = ARTISAN_PRESETS.findIndex(p =>
+      p.firstName === current.firstName && p.company === current.company &&
+      p.metier === current.metier && p.ville === current.ville
+    );
+    activePreset = match >= 0 ? match : -1;
+    renderPresets();
+    updateChatHeader();
+  }
+
+  function updateChatHeader() {
+    const o = getClientOverride();
+    const preset = activePreset >= 0 ? ARTISAN_PRESETS[activePreset] : null;
+    const icon = preset ? preset.icon : '🔨';
+    document.getElementById('chatArtisanLabel').textContent = `${icon} ${o.firstName} — ${o.metier}`;
+  }
 
   function setPlan(plan) {
     currentPlan = plan;
@@ -529,6 +690,7 @@
         clientId: document.getElementById('clientSelect').value,
         plan: currentPlan,
         history: chatHistory.slice(-10),
+        clientOverride: getClientOverride(),
       };
       if (targetAgent) payload.targetAgent = targetAgent;
 
@@ -555,6 +717,7 @@
       document.getElementById('debugPanel').textContent = JSON.stringify({
         mode: data.mode,
         plan: data.plan,
+        client: data.client,
         scores: data.scores,
         respondingAgents: data.respondingAgents,
         team: data.team,
@@ -596,8 +759,10 @@
   }
 
   // Init
+  renderPresets();
   updateTeamBadges();
-  addSystemMessage('Interface de test equipe IA prete. Selectionnez un plan et envoyez un message.');
+  updateChatHeader();
+  addSystemMessage('Interface de test equipe IA prete. Selectionnez un profil artisan, un plan, et envoyez un message.');
 </script>
 </body>
 </html>

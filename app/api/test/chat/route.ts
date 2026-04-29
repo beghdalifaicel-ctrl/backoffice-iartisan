@@ -2,7 +2,7 @@
  * Test Chat API — /api/test/chat (Team Chat Mode)
  *
  * Endpoint for the web test interface (test-agents.html).
- * Accepts { message: string, clientId?: string, plan?: string, targetAgent?: string, history?: array }
+ * Accepts { message: string, clientId?: string, plan?: string, targetAgent?: string, history?: array, clientOverride?: object }
  *
  * In team mode:
  * - Scores message against all agents in the plan
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { message, clientId, plan: overridePlan, targetAgent, history } = await request.json();
+  const { message, clientId, plan: overridePlan, targetAgent, history, clientOverride } = await request.json();
 
   if (!message) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
@@ -185,16 +185,25 @@ export async function POST(request: NextRequest) {
 
   const testClientId = clientId || "test-client-001";
 
-  // Load client
-  const { data: client } = await supabase
+  // Load client from Supabase
+  const { data: dbClient } = await supabase
     .from("clients")
     .select("id, plan, company, metier, ville, firstName, lastName")
     .eq("id", testClientId)
     .single();
 
-  if (!client) {
+  if (!dbClient) {
     return NextResponse.json({ error: `Client ${testClientId} not found` }, { status: 404 });
   }
+
+  // Apply client overrides (from test UI artisan profile selector)
+  const client = {
+    ...dbClient,
+    ...(clientOverride?.firstName && { firstName: clientOverride.firstName }),
+    ...(clientOverride?.company && { company: clientOverride.company }),
+    ...(clientOverride?.metier && { metier: clientOverride.metier }),
+    ...(clientOverride?.ville && { ville: clientOverride.ville }),
+  };
 
   // Determine plan and team
   const plan = (overridePlan || client.plan || "ESSENTIEL") as PlanType;
@@ -291,6 +300,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     mode: targetAgent ? "direct" : "team",
     plan,
+    client: { firstName: client.firstName, company: client.company, metier: client.metier, ville: client.ville },
     team: teamMembers.map((m) => ({ ...m, emoji: AGENT_EMOJIS[m.type] })),
     respondingAgents,
     scores: scoreAllAgents(message),
