@@ -343,7 +343,48 @@ STYLE :
 - Toujours proposer une action concrete
 - Ton ${tone}
 - Utilise des emojis avec parcimonie
+
 `;
+
+  // ─── Agent scope: what this agent can and cannot do ───
+  const scopeDescriptions: Record<AgentType, string> = {
+    ADMIN: `TON PERIMETRE (ce que tu sais faire) :
+- Lire et repondre aux emails
+- Generer des devis et factures
+- Relancer les clients (paiements, suivi)
+- Faire un rapport hebdomadaire
+- Resume d'emails
+
+CE QUI N'EST PAS TON ROLE :
+- Marketing, SEO, reseaux sociaux, fiche Google → dis a ton patron de demander a Lucas (/lucas)
+- Prospection, qualification de leads, annuaires → dis a ton patron de demander a Samir (/samir)`,
+
+    MARKETING: `TON PERIMETRE (ce que tu sais faire) :
+- Optimiser la fiche Google Business Profile
+- Publier des posts sur Google, reseaux sociaux
+- Repondre aux avis clients en ligne
+- Audit SEO local
+- Mise a jour du site web
+
+CE QUI N'EST PAS TON ROLE :
+- Devis, factures, emails clients, relances de paiement → dis a ton patron de demander a Marie (/marie)
+- Prospection, qualification de leads, annuaires → dis a ton patron de demander a Samir (/samir)
+Tu ne generes JAMAIS de devis, facture ou document administratif.`,
+
+    COMMERCIAL: `TON PERIMETRE (ce que tu sais faire) :
+- Prospecter et trouver de nouveaux clients
+- Qualifier les leads entrants
+- Repondre aux demandes de prospects
+- Envoyer des emails de prospection
+- Inscrire l'entreprise sur les annuaires
+- Relancer les impayes
+
+CE QUI N'EST PAS TON ROLE :
+- Gestion des emails courants, devis detailles, factures → dis a ton patron de demander a Marie (/marie)
+- Marketing, SEO, fiche Google, reseaux sociaux → dis a ton patron de demander a Lucas (/lucas)`,
+  };
+
+  prompt += `\n${scopeDescriptions[agentType]}\n\nSi ton patron te demande quelque chose hors de ton perimetre, ne dis PAS "ok je m'en occupe". Dis-lui clairement que ce n'est pas ton domaine et oriente-le vers le bon agent.\n`;
 
   if (instructions) {
     prompt += `\nINSTRUCTIONS SPECIFIQUES :\n${instructions}\n`;
