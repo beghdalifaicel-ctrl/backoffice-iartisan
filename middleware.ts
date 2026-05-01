@@ -52,6 +52,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/leads") ||
     pathname.startsWith("/api/webhooks") ||
     pathname.startsWith("/api/integrations") ||
+    pathname.startsWith("/api/oauth/") ||
     pathname.startsWith("/api/agents/worker") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/test") ||
