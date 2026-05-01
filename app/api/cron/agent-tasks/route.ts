@@ -60,7 +60,8 @@ interface ExecResult {
 }
 
 async function execTask(task: any): Promise<ExecResult> {
-  const intent: string = task.intent;
+  // existing schema uses task_type, fall back to intent for forward compatibility
+  const intent: string = task.task_type || task.intent;
   const payload = task.payload || {};
 
   switch (intent) {
@@ -156,7 +157,7 @@ export async function GET(request: NextRequest) {
         await supabase
           .from("agent_tasks")
           .update({
-            status: "completed",
+            status: "COMPLETED",
             completed_at: new Date().toISOString(),
             result: result.resultData || null,
           })
@@ -206,15 +207,15 @@ export async function GET(request: NextRequest) {
 }
 
 async function markFailed(task: any, errMsg: string): Promise<void> {
-  const exhausted = (task.attempts || 0) >= (task.max_attempts || 3);
+  const exhausted = (task.retry_count || 0) >= (task.max_retries || 3);
   await supabase
     .from("agent_tasks")
     .update({
-      status: exhausted ? "error" : "pending",
-      error_message: errMsg.slice(0, 500),
+      status: exhausted ? "ERROR" : "PENDING",
+      error: errMsg.slice(0, 500),
       // Re-queue with a 10-min backoff if not exhausted
-      scheduled_at: exhausted
-        ? task.scheduled_at
+      scheduled_for: exhausted
+        ? task.scheduled_for
         : new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     })
     .eq("id", task.id);

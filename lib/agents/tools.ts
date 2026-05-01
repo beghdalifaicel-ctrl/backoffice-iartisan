@@ -130,17 +130,17 @@ export const TOOLS: ToolDefinition[] = [
           .insert({
             client_id: ctx.clientId,
             agent_type: args.agent || "ADMIN",
-            intent: args.intent || "generic",
-            scheduled_at: args.scheduled_at_iso || new Date().toISOString(),
+            task_type: args.intent || "generic",
+            scheduled_for: args.scheduled_at_iso || new Date().toISOString(),
             payload: args.payload || {},
             notify_phone: args.notify_on_complete === false ? null : ctx.phone,
           })
-          .select("id, scheduled_at")
+          .select("id, scheduled_for")
           .single();
         if (error) throw error;
         return {
           ok: true,
-          summary: `Programmé pour ${new Date(data!.scheduled_at).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}`,
+          summary: `Programmé pour ${new Date(data!.scheduled_for).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}`,
           data: { task_id: data!.id },
         };
       } catch (e: any) {
@@ -165,8 +165,8 @@ export const TOOLS: ToolDefinition[] = [
         .insert({
           client_id: ctx.clientId,
           agent_type: "ADMIN",
-          intent: "payment_reminder_send",
-          scheduled_at: new Date().toISOString(),
+          task_type: "payment_reminder_send",
+          scheduled_for: new Date().toISOString(),
           payload: args,
           notify_phone: ctx.phone,
         })
@@ -219,12 +219,12 @@ export const TOOLS: ToolDefinition[] = [
         .insert({
           client_id: ctx.clientId,
           agent_type: "MARKETING",
-          intent: "gmb_post",
-          scheduled_at: when,
+          task_type: "gmb_post",
+          scheduled_for: when,
           payload: args,
           notify_phone: ctx.phone,
         })
-        .select("id, scheduled_at")
+        .select("id, scheduled_for")
         .single();
       if (error) return { ok: false, summary: "post GMB non programmé", error: error.message };
       const isFuture = new Date(when).getTime() > Date.now() + 60_000;
@@ -251,8 +251,8 @@ export const TOOLS: ToolDefinition[] = [
         .insert({
           client_id: ctx.clientId,
           agent_type: "MARKETING",
-          intent: args.pre_approved ? "review_reply_publish" : "review_reply_draft",
-          scheduled_at: new Date().toISOString(),
+          task_type: args.pre_approved ? "review_reply_publish" : "review_reply_draft",
+          scheduled_for: new Date().toISOString(),
           payload: args,
           notify_phone: ctx.phone,
         })
@@ -355,8 +355,8 @@ export const TOOLS: ToolDefinition[] = [
         .insert({
           client_id: ctx.clientId,
           agent_type: "COMMERCIAL",
-          intent: "dunning_step",
-          scheduled_at: new Date().toISOString(),
+          task_type: "dunning_step",
+          scheduled_for: new Date().toISOString(),
           payload: { ...args, next_step: next },
           notify_phone: ctx.phone,
         })
