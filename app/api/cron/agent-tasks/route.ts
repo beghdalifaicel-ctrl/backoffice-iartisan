@@ -241,7 +241,18 @@ export async function GET(request: NextRequest) {
 
   // Claim due tasks atomically
   console.log("[worker] supabase URL:", process.env["NEXT_PUBLIC_SUPABASE_URL"]?.slice(0, 50));
-  const { data: due, error } = await supabase.rpc("claim_due_agent_tasks", { p_limit: 25 });
+  // Direct POST to RPC (supabase-js v2 was using GET, dropping p_limit)
+  const rpcRes = await fetch(`${process.env["NEXT_PUBLIC_SUPABASE_URL"]}/rest/v1/rpc/claim_due_agent_tasks`, {
+    method: "POST",
+    headers: {
+      "apikey": process.env["SUPABASE_SERVICE_ROLE_KEY"]!,
+      "Authorization": `Bearer ${process.env["SUPABASE_SERVICE_ROLE_KEY"]}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_limit: 25 }),
+  });
+  const due: any = rpcRes.ok ? await rpcRes.json() : null;
+  const error: any = rpcRes.ok ? null : { message: `HTTP ${rpcRes.status}: ${await rpcRes.text()}` };
   console.log("[worker] claim result:", { tasksCount: due?.length, error: error?.message, dueRaw: JSON.stringify(due)?.slice(0, 200) });
   if (error) {
     console.error("claim_due_agent_tasks error:", error);
