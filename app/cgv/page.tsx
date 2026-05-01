@@ -14,11 +14,23 @@ export default function CGV() {
         </a>
 
         <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>Conditions Générales de Vente</h1>
-        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 32 }}>Dernière mise à jour : avril 2026</p>
+        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 32 }}>Dernière mise à jour : mai 2026</p>
 
         <div style={{ background: "#fff", borderRadius: 16, padding: "32px 28px", border: "1px solid #e5e7eb", lineHeight: 1.8, fontSize: 15, color: "#374151" }}>
 
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginBottom: 12 }}>1. Objet</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginBottom: 12 }}>Préambule — Identification du prestataire</h2>
+          <p>
+            Le service iArtisan est édité par <strong>iArtisan</strong>, marque commerciale exploitée par une entreprise individuelle relevant du régime de la micro-entreprise.
+          </p>
+          <p style={{ marginTop: 8 }}>
+            <strong>SIRET :</strong> 884 858 234 00021<br />
+            <strong>Adresse :</strong> 270 Rue Pierre Duhem, 13290 Aix-en-Provence, France<br />
+            <strong>Email :</strong> contact@iartisan.io<br />
+            <strong>Code APE :</strong> 63.12Z (Portails Internet)<br />
+            <strong>Régime fiscal :</strong> micro-entreprise — TVA non applicable, article 293 B du CGI
+          </p>
+
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 28, marginBottom: 12 }}>1. Objet</h2>
           <p>
             Les présentes Conditions Générales de Vente (CGV) régissent l&apos;accès et l&apos;utilisation du service iArtisan, plateforme d&apos;assistants IA destinée aux artisans du BTP. Toute souscription implique l&apos;acceptation sans réserve des présentes CGV.
           </p>
@@ -33,12 +45,12 @@ export default function CGV() {
             iArtisan propose trois formules d&apos;abonnement mensuel :
           </p>
           <p style={{ marginTop: 8 }}>
-            <strong>Essentiel</strong> — 49 € HT/mois : 1 agent IA (secrétaire virtuelle), gestion des appels et messages, devis et factures.<br />
-            <strong>Pro</strong> — 99 € HT/mois : 2 agents IA (secrétaire + commercial digital), prospection automatisée, Google Business.<br />
-            <strong>Max</strong> — 179 € HT/mois : 3 agents IA (secrétaire + commercial + apporteur d&apos;affaires), toutes les fonctionnalités, priorité support.
+            <strong>Essentiel</strong> — 49 €/mois : 1 agent IA (secrétaire virtuelle), gestion des appels et messages, devis et factures.<br />
+            <strong>Pro</strong> — 99 €/mois : 2 agents IA (secrétaire + commercial digital), prospection automatisée, Google Business.<br />
+            <strong>Max</strong> — 179 €/mois : 3 agents IA (secrétaire + commercial + apporteur d&apos;affaires), toutes les fonctionnalités, priorité support.
           </p>
           <p style={{ marginTop: 8 }}>
-            Les prix sont indiqués hors taxes. La TVA applicable sera ajoutée au moment de la facturation conformément à la réglementation en vigueur.
+            Les prix sont nets, exprimés en euros. <strong>TVA non applicable, article 293 B du CGI</strong> (le prestataire bénéficie de la franchise en base de TVA au titre de la micro-entreprise). Aucun montant supplémentaire ne s&apos;ajoute aux tarifs affichés.
           </p>
 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 28, marginBottom: 12 }}>4. Période d&apos;essai</h2>
@@ -78,7 +90,7 @@ export default function CGV() {
 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 28, marginBottom: 12 }}>11. Litiges</h2>
           <p>
-            Les présentes CGV sont soumises au droit français. En cas de litige, les parties s&apos;efforceront de trouver une solution amiable. À défaut, les tribunaux de Paris seront seuls compétents. Conformément au droit en vigueur, le client peut recourir à un médiateur de la consommation.
+            Les présentes CGV sont soumises au droit français. En cas de litige, les parties s&apos;efforceront de trouver une solution amiable. À défaut, le tribunal de commerce d&apos;Aix-en-Provence sera seul compétent pour les professionnels ; pour les consommateurs, le tribunal du lieu de leur domicile ou du lieu d&apos;exécution du service sera compétent (art. R.631-3 du Code de la consommation). Conformément à l&apos;article L.612-1 du Code de la consommation, le client consommateur peut recourir gratuitement au <strong>Médiateur de la consommation AME</strong> — site : <a href="https://www.mediationconso-ame.com" style={{ color: "#2563eb" }}>mediationconso-ame.com</a>.
           </p>
 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 28, marginBottom: 12 }}>12. Contact</h2>

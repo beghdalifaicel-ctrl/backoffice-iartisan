@@ -20,7 +20,13 @@ export default function Confidentialite() {
 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginBottom: 12 }}>1. Responsable du traitement</h2>
           <p>
-            Le responsable du traitement des données personnelles est la société <strong>iArtisan SAS</strong>, représentée par Faicel Beghdali, joignable à l&apos;adresse contact@iartisan.io.
+            Le responsable du traitement des données personnelles est <strong>iArtisan</strong>, marque commerciale exploitée par une entreprise individuelle relevant du régime de la micro-entreprise.
+          </p>
+          <p style={{ marginTop: 8 }}>
+            <strong>SIRET :</strong> 884 858 234 00021<br />
+            <strong>Adresse :</strong> 270 Rue Pierre Duhem, 13290 Aix-en-Provence, France<br />
+            <strong>Email :</strong> contact@iartisan.io<br />
+            <strong>Représentant :</strong> M. Faicel Beghdali
           </p>
 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginTop: 28, marginBottom: 12 }}>2. Données collectées</h2>
