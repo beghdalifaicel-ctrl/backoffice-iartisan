@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 /**
  * iArtisan WhatsApp webhook — v4 Orchestrator
  *

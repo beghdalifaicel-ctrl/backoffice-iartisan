@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 /**
  * WhatsApp Webhook (via Ringover or WhatsApp Business API)
  *

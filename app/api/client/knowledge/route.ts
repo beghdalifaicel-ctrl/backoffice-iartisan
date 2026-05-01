@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 /**
  * Knowledge Base API — /api/client/knowledge
  *

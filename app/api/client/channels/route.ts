@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 /**
  * Client Channels API
  * GET  — List connected channels (Telegram, WhatsApp)

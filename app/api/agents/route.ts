@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { orchestrator } from '@/lib/agents/orchestrator';
 import { AgentType } from '@/lib/agents/types';

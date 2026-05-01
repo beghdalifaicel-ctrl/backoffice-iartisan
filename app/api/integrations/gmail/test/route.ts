@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { listEmails, isGmailConnected } from '@/lib/integrations/gmail';
 import { verifyAuth } from '@/lib/auth';

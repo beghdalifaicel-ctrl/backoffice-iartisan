@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { requireClient } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';

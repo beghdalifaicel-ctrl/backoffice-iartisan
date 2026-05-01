@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 /**
  * Agent Configuration API — /api/client/agents/config
  *

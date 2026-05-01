@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 /**
  * Test Chat API — /api/test/chat (Team Chat Mode)
  *

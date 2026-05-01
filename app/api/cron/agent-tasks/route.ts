@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 /**
  * iArtisan — agent_tasks worker (Vercel Cron / Edge runtime compatible)
  *
