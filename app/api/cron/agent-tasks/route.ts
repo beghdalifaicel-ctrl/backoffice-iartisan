@@ -60,6 +60,89 @@ interface ExecResult {
   error?: string;
 }
 
+
+// ─── Resend integration ──────────────────────────────────────
+
+async function sendPaymentReminderEmail(
+  payload: any,
+  artisan: any
+): Promise<{ ok: boolean; resend_id?: string; error?: string }> {
+  const apiKey = process.env["RESEND_API_KEY"];
+  const fromAddr = process.env["RESEND_FROM_EMAIL"];
+  if (!apiKey || !fromAddr) {
+    return { ok: false, error: "RESEND_API_KEY or RESEND_FROM_EMAIL missing" };
+  }
+  if (!payload?.client_email) {
+    return { ok: false, error: "client_email required in payload" };
+  }
+
+  const fromName = (artisan?.company || artisan?.firstName || "iArtisan").replace(/[<>"]/g, "");
+  const html = buildPaymentReminderHtml(payload, artisan);
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `${fromName} <${fromAddr}>`,
+        to: [payload.client_email],
+        subject: `Relance facture ${payload.invoice_number || ""}`.trim(),
+        html,
+      }),
+    });
+  } catch (e: any) {
+    return { ok: false, error: `fetch error: ${e?.message || String(e)}` };
+  }
+
+  const body: any = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: body?.message || `Resend HTTP ${res.status}` };
+  }
+  return { ok: true, resend_id: body?.id };
+}
+
+function buildPaymentReminderHtml(payload: any, artisan: any): string {
+  const tone = payload?.tone === "ferme" ? "ferme" : "polie";
+  const company = (artisan?.company || "").trim() || "Notre société";
+  const firstName = (artisan?.firstName || "").trim();
+  const clientName = (payload?.client_name || "").trim() || "Madame, Monsieur";
+  const invoice = (payload?.invoice_number || "").toString().trim();
+  const amount =
+    typeof payload?.amount_eur === "number"
+      ? payload.amount_eur.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : (payload?.amount_eur || "—").toString();
+
+  const intro =
+    tone === "ferme"
+      ? `Sauf erreur de notre part, la facture ${invoice ? "n°" + invoice + " " : ""}d'un montant de <strong>${amount} € TTC</strong> est toujours en attente de règlement.`
+      : `Permettez-nous de vous rappeler que la facture ${invoice ? "n°" + invoice + " " : ""}d'un montant de <strong>${amount} € TTC</strong> reste en attente de règlement.`;
+
+  const cta =
+    tone === "ferme"
+      ? `Nous vous remercions de procéder au règlement sous <strong>8 jours</strong>. À défaut, nous serons contraints d'engager les démarches de recouvrement prévues par la loi.`
+      : `Nous vous remercions de bien vouloir régulariser ce règlement dans les meilleurs délais.`;
+
+  const sig = firstName ? `${firstName}<br>${company}` : company;
+
+  return `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>Relance facture</title></head>
+<body style="font-family:-apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;background:#fafafa;margin:0;padding:32px 16px;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;padding:32px;line-height:1.6;">
+    <p style="margin-top:0;">Bonjour ${clientName},</p>
+    <p>${intro}</p>
+    <p>${cta}</p>
+    <p>Si ce règlement a déjà été effectué de votre côté, nous vous remercions de bien vouloir ne pas tenir compte de ce message et nous transmettre la preuve de paiement.</p>
+    <p>Pour toute question, vous pouvez répondre directement à cet email.</p>
+    <p style="margin-top:32px;">Bien cordialement,<br><strong>${sig}</strong></p>
+  </div>
+  <p style="text-align:center;font-size:11px;color:#999;margin-top:16px;">Email envoyé automatiquement pour le compte de ${company}.</p>
+</body></html>`;
+}
+
 async function execTask(task: any): Promise<ExecResult> {
   // existing schema uses task_type, fall back to intent for forward compatibility
   const intent: string = task.task_type || task.intent;
@@ -67,11 +150,27 @@ async function execTask(task: any): Promise<ExecResult> {
 
   switch (intent) {
     case "payment_reminder_send": {
-      // TODO: brancher Brevo. Pour l'instant on enregistre l'envoi simulé.
+      // Récupère les infos artisan pour personnaliser le from + signature
+      const { data: artisan } = await supabase
+        .from("clients")
+        .select("company, firstName, metier, ville")
+        .eq("id", task.client_id)
+        .single();
+
+      const r = await sendPaymentReminderEmail(payload, artisan);
+      if (!r.ok) {
+        return { ok: false, error: r.error || "Resend send failed" };
+      }
       return {
         ok: true,
-        notify: `Relance facture ${payload.invoice_number || ""} envoyée à ${payload.client_email || payload.client_name || "client"}.`,
-        resultData: { simulated: true },
+        notify: `📧 Relance facture ${payload.invoice_number || ""} envoyée à ${payload.client_email}.`,
+        resultData: {
+          provider: "resend",
+          resend_id: r.resend_id,
+          to: payload.client_email,
+          tone: payload.tone || "polie",
+          sent_at: new Date().toISOString(),
+        },
       };
     }
 
