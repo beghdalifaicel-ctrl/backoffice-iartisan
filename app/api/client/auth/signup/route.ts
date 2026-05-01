@@ -91,19 +91,20 @@ export async function POST(req: NextRequest) {
 
     // Essai gratuit 14 jours sur tous les plans
     if (hasTrial) {
-      const subscriptionData: any = { trial_period_days: 14 };
-      // Frais de mise en service facturés à la FIN du trial (ajoutés à la 1ère facture)
-      if (hasSetupFee) {
-        subscriptionData.invoice_items = [{
-          price_data: {
-            currency: "eur",
-            product_data: { name: `Frais de mise en service — ${PLANS[planKey].name}` },
-            unit_amount: PLANS[planKey].setup, // en centimes (5000 = 50€)
-          },
-          quantity: 1,
-        }];
-      }
-      checkoutParams.subscription_data = subscriptionData;
+      checkoutParams.subscription_data = { trial_period_days: 14 };
+    }
+    // TODO(Phase 2 J21) — Frais de mise en service.
+    // Stripe Checkout Session mode=subscription ne supporte ni `invoice_items` ni
+    // `add_invoice_items` dans `subscription_data`. Pour facturer le setup fee à la
+    // fin du trial, mettre en place un webhook `customer.subscription.trial_will_end`
+    // qui crée un invoice item via stripe.invoiceItems.create({ customer, price_data })
+    // avant que la première facture soit générée.
+    // En attendant : le setup fee n'est PAS facturé. Logguer pour suivi.
+    if (hasSetupFee) {
+      console.warn(
+        `[signup] Setup fee de ${PLANS[planKey].setup}c (${PLANS[planKey].name}) ` +
+        `non facturé pour client ${clientId} — webhook trial_will_end à implémenter (J21)`
+      );
     }
 
     const session = await stripe.checkout.sessions.create(checkoutParams);
