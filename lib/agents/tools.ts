@@ -1,0 +1,437 @@
+/**
+ * iArtisan Orchestrator — Tool registry & executors
+ *
+ * Each agent declares the tools it can call. The orchestrator parses
+ * tool-call directives from the LLM output and runs them, posting status
+ * updates to WhatsApp as it goes.
+ *
+ * Tool-call protocol (in agent output):
+ *   <tool>
+ *   { "name": "tool_name", "args": { ... } }
+ *   </tool>
+ *
+ * The orchestrator extracts every <tool> block, executes them in order,
+ * and the agent's text *outside* those blocks becomes the reply to the
+ * artisan.
+ *
+ * Path: lib/agents/tools.ts
+ */
+
+import { createClient } from "@supabase/supabase-js";
+import type { AgentType } from "@/lib/agents/types";
+import { handleDevisGeneration } from "@/lib/pdf/devis-flow";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// ─── Public types ─────────────────────────────────────────────
+
+export interface ToolCall {
+  name: string;
+  args: Record<string, any>;
+}
+
+export interface ToolResult {
+  ok: boolean;
+  /** Short, human-readable summary the agent can reuse in its final message. */
+  summary: string;
+  /** Optional artefact to deliver via WhatsApp (PDF, image, etc.). */
+  attachment?: {
+    url: string;
+    filename: string;
+    caption?: string;
+  };
+  /** Free-form data made available to the agent for follow-up. */
+  data?: Record<string, any>;
+  /** Error message if ok=false. */
+  error?: string;
+}
+
+export interface ToolContext {
+  clientId: string;
+  client: {
+    id: string;
+    company: string;
+    metier: string;
+    ville: string;
+    firstName?: string;
+    plan: string;
+  };
+  phone: string;            // E.164 raw
+  normalizedPhone: string;  // digits only
+  /** Stream a status message to the artisan during execution. */
+  emitStatus: (text: string) => Promise<void>;
+}
+
+export interface ToolDefinition {
+  name: string;
+  agent: AgentType;
+  /** Short description shown to the LLM in the system prompt. */
+  description: string;
+  /** Arg schema as plain English (the LLM doesn't need formal JSON Schema for this). */
+  argsHint: string;
+  exec: (args: Record<string, any>, ctx: ToolContext) => Promise<ToolResult>;
+}
+
+// ─── Tool registry ────────────────────────────────────────────
+
+export const TOOLS: ToolDefinition[] = [
+  // ============== ADMIN (Marie) ==============
+  {
+    name: "generateDevisFromText",
+    agent: "ADMIN",
+    description:
+      "Génère un devis PDF à partir d'une description en texte. À utiliser dès que l'artisan demande un devis et a fourni au moins le type de prestation. PJ envoyée automatiquement à l'artisan.",
+    argsHint:
+      '{ "client_name": "Mme Dupont", "client_address"?: "...", "client_email"?: "...", "description": "ravalement 80m² enduit minéral" }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus("Génération du devis…");
+      try {
+        const r = await handleDevisGeneration({
+          clientId: ctx.clientId,
+          clientName: args.client_name || `Client ${Date.now()}`,
+          clientAddress: args.client_address,
+          clientEmail: args.client_email,
+          userPhone: ctx.normalizedPhone,
+          userMessage: args.description || "",
+        });
+        if (r.success && r.documentUrl) {
+          return {
+            ok: true,
+            summary: `Devis ${r.devisNumber} prêt`,
+            attachment: {
+              url: r.documentUrl,
+              filename: r.devisNumber || "devis.pdf",
+              caption: `Devis ${r.devisNumber}`,
+            },
+            data: { devis_number: r.devisNumber, document_url: r.documentUrl },
+          };
+        }
+        return { ok: false, summary: "génération devis échouée", error: r.error || "unknown" };
+      } catch (e: any) {
+        return { ok: false, summary: "erreur devis", error: e?.message || String(e) };
+      }
+    },
+  },
+
+  {
+    name: "scheduleTask",
+    agent: "ADMIN",
+    description:
+      "Programme une action future (relance, publication, rappel). OBLIGATOIRE avant toute promesse de type 'demain', 'vendredi', 'la semaine prochaine'. La tâche sera exécutée par le worker au moment voulu.",
+    argsHint:
+      '{ "agent": "ADMIN|MARKETING|COMMERCIAL", "intent": "payment_reminder|post_gmb|...", "scheduled_at_iso": "2026-05-02T08:30:00+02:00", "payload": { ... }, "notify_on_complete": true }',
+    exec: async (args, ctx) => {
+      try {
+        const { data, error } = await supabase
+          .from("agent_tasks")
+          .insert({
+            client_id: ctx.clientId,
+            agent_type: args.agent || "ADMIN",
+            intent: args.intent || "generic",
+            scheduled_at: args.scheduled_at_iso || new Date().toISOString(),
+            payload: args.payload || {},
+            notify_phone: args.notify_on_complete === false ? null : ctx.phone,
+          })
+          .select("id, scheduled_at")
+          .single();
+        if (error) throw error;
+        return {
+          ok: true,
+          summary: `Programmé pour ${new Date(data!.scheduled_at).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}`,
+          data: { task_id: data!.id },
+        };
+      } catch (e: any) {
+        return { ok: false, summary: "impossible de programmer", error: e?.message || String(e) };
+      }
+    },
+  },
+
+  {
+    name: "sendPaymentReminder",
+    agent: "ADMIN",
+    description:
+      "Envoie une relance de paiement à un client final (email). Génère un message poli, professionnel, avec montant et nº de facture.",
+    argsHint:
+      '{ "client_email": "x@y.fr", "client_name": "Dupont", "invoice_number": "F-2026-018", "amount_eur": 850, "tone": "polie|ferme" }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus(`Rédaction de la relance pour ${args.client_name || "le client"}…`);
+      // Intégration avec Brevo / SMTP côté backoffice. Stub safe par défaut :
+      // on enregistre l'intention en agent_tasks pour traitement par le worker.
+      const { data, error } = await supabase
+        .from("agent_tasks")
+        .insert({
+          client_id: ctx.clientId,
+          agent_type: "ADMIN",
+          intent: "payment_reminder_send",
+          scheduled_at: new Date().toISOString(),
+          payload: args,
+          notify_phone: ctx.phone,
+        })
+        .select("id")
+        .single();
+      if (error) return { ok: false, summary: "relance non envoyée", error: error.message };
+      return {
+        ok: true,
+        summary: `Relance ${args.invoice_number || ""} programmée pour envoi`,
+        data: { task_id: data!.id },
+      };
+    },
+  },
+
+  {
+    name: "summarizeInbox",
+    agent: "ADMIN",
+    description:
+      "Résume les emails non lus de la boîte de l'artisan (via intégration Gmail/IMAP côté serveur). Renvoie une synthèse en 5 lignes max.",
+    argsHint: '{ "since_hours": 24 }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus("Lecture de ta boîte mail…");
+      // Stub : à brancher sur l'intégration réelle. On retourne un placeholder
+      // structuré pour que l'agent compose une réponse cohérente.
+      return {
+        ok: true,
+        summary: "Inbox parcourue",
+        data: {
+          since_hours: args.since_hours || 24,
+          unread_count: 0,
+          top_threads: [],
+          note: "Intégration Gmail à brancher (stub).",
+        },
+      };
+    },
+  },
+
+  // ============== MARKETING (Lucas) ==============
+  {
+    name: "publishGmbPost",
+    agent: "MARKETING",
+    description:
+      "Publie un post sur Google Business Profile. Si scheduled_at_iso est fourni, programme via scheduleTask.",
+    argsHint:
+      '{ "title": "Nouvelle réalisation", "body": "...", "cta_url"?: "https://...", "scheduled_at_iso"?: "..." }',
+    exec: async (args, ctx) => {
+      const when = args.scheduled_at_iso || new Date().toISOString();
+      const { data, error } = await supabase
+        .from("agent_tasks")
+        .insert({
+          client_id: ctx.clientId,
+          agent_type: "MARKETING",
+          intent: "gmb_post",
+          scheduled_at: when,
+          payload: args,
+          notify_phone: ctx.phone,
+        })
+        .select("id, scheduled_at")
+        .single();
+      if (error) return { ok: false, summary: "post GMB non programmé", error: error.message };
+      const isFuture = new Date(when).getTime() > Date.now() + 60_000;
+      return {
+        ok: true,
+        summary: isFuture
+          ? `Post GMB programmé (${new Date(when).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })})`
+          : "Post GMB en file d'attente (publication imminente)",
+        data: { task_id: data!.id },
+      };
+    },
+  },
+
+  {
+    name: "replyToReview",
+    agent: "MARKETING",
+    description:
+      "Rédige et publie une réponse à un avis Google. Ton calé sur la note (apaisant si 1-2 étoiles, chaleureux si 4-5). Demande validation à l'artisan SAUF si pre_approved=true.",
+    argsHint:
+      '{ "review_id": "...", "rating": 1, "review_text": "...", "tone": "apaisant|chaleureux|neutre", "pre_approved"?: false }',
+    exec: async (args, ctx) => {
+      const { data, error } = await supabase
+        .from("agent_tasks")
+        .insert({
+          client_id: ctx.clientId,
+          agent_type: "MARKETING",
+          intent: args.pre_approved ? "review_reply_publish" : "review_reply_draft",
+          scheduled_at: new Date().toISOString(),
+          payload: args,
+          notify_phone: ctx.phone,
+        })
+        .select("id")
+        .single();
+      if (error) return { ok: false, summary: "réponse avis non préparée", error: error.message };
+      return {
+        ok: true,
+        summary: args.pre_approved
+          ? "Réponse à l'avis en cours de publication"
+          : `Brouillon de réponse à l'avis (${args.rating}★) prêt — validation requise`,
+        data: { task_id: data!.id },
+      };
+    },
+  },
+
+  {
+    name: "fetchRecentReviews",
+    agent: "MARKETING",
+    description:
+      "Récupère les avis Google récents non répondus. Renvoie liste : id, rating, review_text, date.",
+    argsHint: '{ "since_days": 30, "min_rating"?: 1, "max_rating"?: 5, "only_unanswered": true }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus("Je récupère tes avis Google…");
+      // Stub : intégration GMB API à brancher (cf. memory iArtisan J14).
+      return {
+        ok: true,
+        summary: "Avis récupérés (stub)",
+        data: {
+          since_days: args.since_days || 30,
+          reviews: [],
+          note: "Intégration GMB API à brancher (stub).",
+        },
+      };
+    },
+  },
+
+  // ============== COMMERCIAL (Samir) ==============
+  {
+    name: "qualifyLead",
+    agent: "COMMERCIAL",
+    description:
+      "Qualifie un prospect : enrichit les infos (entreprise, métier, ville, taille), score le fit avec l'artisan, propose la prochaine action.",
+    argsHint:
+      '{ "lead_name": "...", "lead_phone"?: "...", "lead_email"?: "...", "source"?: "habitatpresto|appel_entrant|..." }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus("J'enrichis le profil du prospect…");
+      // Stub d'enrichissement
+      return {
+        ok: true,
+        summary: `Lead "${args.lead_name || "inconnu"}" qualifié (score à brancher)`,
+        data: {
+          lead_input: args,
+          score: null,
+          next_action: "Demander confirmation des coordonnées",
+          note: "Enrichissement Apollo/Pappers à brancher (stub).",
+        },
+      };
+    },
+  },
+
+  {
+    name: "scrapeAnnuaires",
+    agent: "COMMERCIAL",
+    description:
+      "Cherche des chantiers/leads sur les annuaires (Habitatpresto, marchés publics) selon métier + zone + période.",
+    argsHint:
+      '{ "metier": "couverture", "zone": "Lyon", "period": "juin 2026", "limit"?: 5 }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus(`Recherche ${args.metier || ctx.client.metier} sur ${args.zone || ctx.client.ville}…`);
+      // Stub : intégration scraper à brancher
+      return {
+        ok: true,
+        summary: `Recherche annuaires lancée (${args.zone || ctx.client.ville})`,
+        data: {
+          query: args,
+          hits: [],
+          note: "Intégration scraper Habitatpresto/marchés publics à brancher (stub).",
+        },
+      };
+    },
+  },
+
+  {
+    name: "dunningStep",
+    agent: "COMMERCIAL",
+    description:
+      "Passe un impayé à l'étape suivante du process de recouvrement (relance simple → mise en demeure → contentieux). Programme l'action en tâche.",
+    argsHint:
+      '{ "invoice_number": "F-2026-...", "client_name": "...", "amount_eur": 0, "current_step": "relance_simple|mise_en_demeure|contentieux" }',
+    exec: async (args, ctx) => {
+      const next =
+        args.current_step === "relance_simple"
+          ? "mise_en_demeure"
+          : args.current_step === "mise_en_demeure"
+            ? "contentieux"
+            : "relance_simple";
+      const { data, error } = await supabase
+        .from("agent_tasks")
+        .insert({
+          client_id: ctx.clientId,
+          agent_type: "COMMERCIAL",
+          intent: "dunning_step",
+          scheduled_at: new Date().toISOString(),
+          payload: { ...args, next_step: next },
+          notify_phone: ctx.phone,
+        })
+        .select("id")
+        .single();
+      if (error) return { ok: false, summary: "étape recouvrement non programmée", error: error.message };
+      return {
+        ok: true,
+        summary: `Recouvrement → ${next} (${args.invoice_number || "facture"})`,
+        data: { task_id: data!.id, next_step: next },
+      };
+    },
+  },
+
+  // ============== Cross-agent ==============
+  {
+    name: "delegate",
+    agent: "ADMIN", // Marie peut déléguer ; Lucas/Samir peuvent en théorie aussi (inversion gérée côté orchestrateur).
+    description:
+      "Demande à un collègue (autre agent) de fournir une info ou d'exécuter sa partie d'une tâche cross-domain. À utiliser pour 'résume ma semaine' ou toute requête qui touche plusieurs périmètres.",
+    argsHint: '{ "to_agent": "MARKETING|COMMERCIAL|ADMIN", "ask": "..." }',
+    exec: async (args, ctx) => {
+      // L'exécution réelle de la délégation est gérée par l'orchestrateur
+      // (qui re-route vers le second agent). Ici on enregistre juste l'intention.
+      return {
+        ok: true,
+        summary: `→ ${args.to_agent}`,
+        data: { delegate_to: args.to_agent, ask: args.ask },
+      };
+    },
+  },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+export function toolsForAgent(agent: AgentType): ToolDefinition[] {
+  // delegate is available to all agents (we relabel its `agent` for prompt purposes)
+  const own = TOOLS.filter((t) => t.agent === agent && t.name !== "delegate");
+  const delegateTool = TOOLS.find((t) => t.name === "delegate")!;
+  return [...own, delegateTool];
+}
+
+export function findTool(name: string): ToolDefinition | undefined {
+  return TOOLS.find((t) => t.name === name);
+}
+
+/**
+ * Parse `<tool>{...}</tool>` blocks from agent output.
+ * Returns the list of calls AND the cleaned reply text.
+ */
+export function parseToolCalls(raw: string): {
+  calls: ToolCall[];
+  cleanedText: string;
+} {
+  const calls: ToolCall[] = [];
+  const re = /<tool>\s*([\s\S]*?)\s*<\/tool>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) {
+    const body = m[1].trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
+    try {
+      const obj = JSON.parse(body);
+      if (obj && typeof obj.name === "string") {
+        calls.push({ name: obj.name, args: obj.args || {} });
+      }
+    } catch {
+      // ignore malformed tool block
+    }
+  }
+  const cleanedText = raw.replace(re, "").replace(/\n{3,}/g, "\n\n").trim();
+  return { calls, cleanedText };
+}
+
+/** Render the tools section of an agent's system prompt. */
+export function renderToolsForPrompt(agent: AgentType): string {
+  const list = toolsForAgent(agent);
+  const lines = list.map((t) => `- ${t.name} — ${t.description}\n  args: ${t.argsHint}`);
+  return lines.join("\n");
+}
