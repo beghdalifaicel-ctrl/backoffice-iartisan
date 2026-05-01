@@ -16,13 +16,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const CRON_SECRET = process.env.CRON_SECRET;
-const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+const CRON_SECRET = process.env["CRON_SECRET"];
+const WHATSAPP_ACCESS_TOKEN = process.env["WHATSAPP_ACCESS_TOKEN"];
+const WHATSAPP_PHONE_NUMBER_ID = process.env["WHATSAPP_PHONE_NUMBER_ID"];
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
+  process.env["SUPABASE_SERVICE_ROLE_KEY"]!
 );
 
 const AGENT_EMOJIS: Record<string, string> = {

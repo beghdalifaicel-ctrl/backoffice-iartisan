@@ -20,19 +20,19 @@ import { createClient } from "@supabase/supabase-js";
 import { callLLM } from "@/lib/agents/llm";
 import type { AgentType, PlanType } from "@/lib/agents/types";
 import { DEFAULT_AGENT_NAMES, PLAN_AGENTS } from "@/lib/agents/types";
-import { routeMessage, type RouterDecision } from "@/lib/agents/router";
+import { routeMessage, type RouterDecision } from "@/lib/agents/router-v4";
 import {
   parseToolCalls,
   findTool,
   type ToolCall,
   type ToolContext,
   type ToolResult,
-} from "@/lib/agents/tools";
-import { buildAgentSystemPrompt, buildToolResultFollowup } from "@/lib/agents/prompts";
+} from "@/lib/agents/tools-v4";
+import { buildAgentSystemPrompt, buildToolResultFollowup } from "@/lib/agents/prompts-v4";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
+  process.env["SUPABASE_SERVICE_ROLE_KEY"]!
 );
 
 export const AGENT_EMOJIS: Record<AgentType, string> = {

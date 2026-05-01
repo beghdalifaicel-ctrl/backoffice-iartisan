@@ -27,17 +27,17 @@ import {
 } from "@/lib/agents/types";
 import { analyzeImageForQuote } from "@/lib/channels/vision";
 import { handleDevisGeneration } from "@/lib/pdf/devis-flow";
-import { orchestrate, AGENT_EMOJIS } from "@/lib/agents/orchestrator";
+import { orchestrate, AGENT_EMOJIS } from "@/lib/agents/orchestrator-v4";
 
 const WHATSAPP_VERIFY_TOKEN =
-  process.env.WHATSAPP_VERIFY_TOKEN || "iartisan-whatsapp-verify";
-const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+  process.env["WHATSAPP_VERIFY_TOKEN"] || "iartisan-whatsapp-verify";
+const WHATSAPP_ACCESS_TOKEN = process.env["WHATSAPP_ACCESS_TOKEN"];
+const WHATSAPP_PHONE_NUMBER_ID = process.env["WHATSAPP_PHONE_NUMBER_ID"];
+const GROQ_API_KEY = process.env["GROQ_API_KEY"];
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
+  process.env["SUPABASE_SERVICE_ROLE_KEY"]!
 );
 
 // ─── Direct agent commands (kept for power users) ────────────

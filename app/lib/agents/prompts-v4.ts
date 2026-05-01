@@ -9,7 +9,7 @@
  */
 
 import type { AgentType } from "@/lib/agents/types";
-import { renderToolsForPrompt } from "@/lib/agents/tools";
+import { renderToolsForPrompt } from "@/lib/agents/tools-v4";
 
 export interface PromptContext {
   client: {
