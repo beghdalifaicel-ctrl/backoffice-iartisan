@@ -11,7 +11,7 @@
  */
 
 import { callLLM } from "@/lib/agents/llm";
-import type { AgentType, PlanType } from "@/lib/agents/types";
+import type { AgentType } from "@/lib/agents/types";
 
 export type RouterIntent =
   // ADMIN
