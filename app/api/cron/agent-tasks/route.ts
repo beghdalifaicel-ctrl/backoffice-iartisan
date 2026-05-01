@@ -240,7 +240,9 @@ export async function GET(request: NextRequest) {
   }
 
   // Claim due tasks atomically
+  console.log("[worker] supabase URL:", process.env["NEXT_PUBLIC_SUPABASE_URL"]?.slice(0, 50));
   const { data: due, error } = await supabase.rpc("claim_due_agent_tasks", { p_limit: 25 });
+  console.log("[worker] claim result:", { tasksCount: due?.length, error: error?.message, dueRaw: JSON.stringify(due)?.slice(0, 200) });
   if (error) {
     console.error("claim_due_agent_tasks error:", error);
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
