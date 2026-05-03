@@ -378,7 +378,7 @@ async function processMessage(
       agent_type: "ADMIN",
       action: "whatsapp.photo_quote",
       tokens_used: 0,
-      model_used: "pixtral",
+      model_used: "claude-haiku-4-5",
       duration_ms: 0,
       cost_cents: 5,
       metadata: { whatsapp_phone: normalized, caption },
