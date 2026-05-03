@@ -150,9 +150,9 @@ export async function generateDevisXLSX(data: DevisData): Promise<Uint8Array> {
   totalTTCRow.getCell(5).font = { bold: true, size: 12 };
   totalTTCRow.getCell(5).numFmt = '#,##0.00 €';
   totalTTCRow.getCell(5).alignment = { horizontal: 'right' };
-  totalTTCRow.eachCell((cell) => {
+  totalTTCRow.eachCell((cell, colNumber) => {
     cell.border = { top: { style: 'medium' }, bottom: { style: 'medium' } };
-    if (cell.col >= 4) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+    if (colNumber >= 4) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
   });
 
   ws.addRow([]); // espace

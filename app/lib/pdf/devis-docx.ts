@@ -46,7 +46,11 @@ function p(text: string, opts: { bold?: boolean; size?: number; color?: string; 
   });
 }
 
-function cell(text: string, opts: { bold?: boolean; align?: AlignmentType; width?: number } = {}) {
+// AlignmentType est un const-object dans docx 9.x — pour le typer en
+// paramètre, on utilise l'union de ses valeurs.
+type DocxAlign = (typeof AlignmentType)[keyof typeof AlignmentType];
+
+function cell(text: string, opts: { bold?: boolean; align?: DocxAlign; width?: number } = {}) {
   return new TableCell({
     width: opts.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
     children: [
