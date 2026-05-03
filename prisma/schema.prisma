@@ -59,10 +59,13 @@ model Client {
   messages    Message[]
   avis        Avis[]
 
-  // Devis & Factures BTP
-  customers   CustomerContact[]
-  devis       Devis[]
-  factures    Facture[]
+  // Devis & Factures BTP : SUPPRIMÉS suite au pivot WhatsApp-first (01/05/2026).
+  // Les devis générés par les agents IA (photo de chantier → PDF) restent
+  // gérés hors Prisma dans la table `agent_devis` (cf. note en bas du fichier).
+
+  // Bibliothèque tarifaire CONSERVÉE — Marie / Samir s'en servent pour
+  // générer des devis cohérents (prix unitaires HT, TVA par catégorie).
+  // Plus exposée via UI web mais consultée/enrichie par les agents IA.
   articles    Article[]
 
   // Agent IA → accédé via raw SQL (tables gérées hors Prisma)
@@ -228,235 +231,25 @@ enum SiteLeadStatus {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DEVIS & FACTURES BTP (outil concurrent d'OBAT)
+// MODÈLES BTP SUPPRIMÉS (pivot WhatsApp-first, 01/05/2026)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Les modèles suivants ont été supprimés car iArtisan ne concurrence plus
+// les outils de gestion de devis/factures BTP (Obat, Tolteck, Henrri) :
+//   - CustomerContact, Devis, DevisLot, DevisLigne
+//   - Facture, FactureLigne
+//   - enums : CustomerType, DevisStatus, FactureType, FactureStatus
+//
+// CONSERVÉS pour les agents IA :
+//   - Article (bibliothèque tarifaire) : Marie/Samir consultent et enrichissent
+//     pour générer des devis cohérents (prix unitaire HT, TVA par catégorie).
+//
+// La migration de drop est dans prisma/migrations/20260503_drop_btp_models/
+//
+// Les devis générés par Marie via photo/texte → PDF restent fonctionnels et
+// sont stockés dans la table `agent_devis` (hors Prisma, raw SQL).
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── CONTACTS CLIENTS DE L'ARTISAN ──────────────────────────────────────────
-
-model CustomerContact {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Identité
-  type        CustomerType @default(PARTICULIER)
-  name        String
-  email       String?
-  phone       String?
-
-  // Adresse
-  adresse     String?
-  codePostal  String?
-  ville       String?
-
-  // Entreprise (si pro)
-  siret       String?
-  tvaIntra    String?
-
-  // Artisan propriétaire
-  clientId    String
-  client      Client   @relation(fields: [clientId], references: [id])
-
-  // Relations
-  devis       Devis[]
-  factures    Facture[]
-
-  @@map("customer_contacts")
-}
-
-enum CustomerType {
-  PARTICULIER
-  PROFESSIONNEL
-}
-
-// ─── DEVIS ──────────────────────────────────────────────────────────────────
-
-model Devis {
-  id            String   @id @default(cuid())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Numérotation
-  number        String   @unique    // DEV-2026-0001
-
-  // Objet
-  objet         String              // "Rénovation salle de bain"
-
-  // Validité
-  validUntil    DateTime?
-
-  // Statut
-  status        DevisStatus @default(BROUILLON)
-
-  // Conditions
-  conditions    String?              // Conditions de paiement
-  notes         String?              // Notes internes
-
-  // Remise globale
-  remisePercent Float     @default(0)
-
-  // Totaux calculés (stockés pour perf)
-  totalHT       Float     @default(0)
-  totalTVA      Float     @default(0)
-  totalTTC      Float     @default(0)
-
-  // Relations
-  customerId    String
-  customer      CustomerContact @relation(fields: [customerId], references: [id])
-  clientId      String
-  client        Client   @relation(fields: [clientId], references: [id])
-  lots          DevisLot[]
-  factures      Facture[]
-
-  @@map("devis")
-}
-
-enum DevisStatus {
-  BROUILLON
-  ENVOYE
-  ACCEPTE
-  REFUSE
-  EXPIRE
-}
-
-// ─── LOTS (sections d'un devis) ─────────────────────────────────────────────
-
-model DevisLot {
-  id          String   @id @default(cuid())
-
-  // Position dans le devis
-  position    Int      @default(0)
-
-  // Titre du lot
-  titre       String              // "Lot 1 - Plomberie"
-
-  // Devis parent
-  devisId     String
-  devis       Devis    @relation(fields: [devisId], references: [id], onDelete: Cascade)
-
-  // Lignes
-  lignes      DevisLigne[]
-
-  @@map("devis_lots")
-}
-
-// ─── LIGNES DE DEVIS ────────────────────────────────────────────────────────
-
-model DevisLigne {
-  id          String   @id @default(cuid())
-
-  // Position
-  position    Int      @default(0)
-
-  // Détail
-  designation String              // "Pose de carrelage 60x60"
-  description String?             // description longue optionnelle
-
-  // Quantité
-  quantite    Float    @default(1)
-  unite       String   @default("u") // u, m², ml, m³, h, forfait, kg, l
-
-  // Prix
-  prixUnitHT  Float    @default(0)
-
-  // TVA
-  tauxTVA     Float    @default(20) // 20, 10, 5.5, 0
-
-  // Lot parent
-  lotId       String
-  lot         DevisLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
-
-  @@map("devis_lignes")
-}
-
-// ─── FACTURES ARTISAN (pas Stripe) ──────────────────────────────────────────
-
-model Facture {
-  id            String   @id @default(cuid())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Numérotation
-  number        String   @unique    // FAC-2026-0001
-
-  // Type
-  type          FactureType @default(FACTURE)
-
-  // Objet
-  objet         String
-
-  // Statut paiement
-  status        FactureStatus @default(EN_ATTENTE)
-  paidAt        DateTime?
-
-  // Échéance
-  echeance      DateTime?
-
-  // Notes
-  conditions    String?
-  notes         String?
-
-  // Remise
-  remisePercent Float     @default(0)
-
-  // Totaux
-  totalHT       Float     @default(0)
-  totalTVA      Float     @default(0)
-  totalTTC      Float     @default(0)
-
-  // Montant déjà payé (pour situations)
-  montantPaye   Float     @default(0)
-
-  // Relations
-  customerId    String
-  customer      CustomerContact @relation(fields: [customerId], references: [id])
-  clientId      String
-  client        Client   @relation(fields: [clientId], references: [id])
-  devisId       String?
-  devis         Devis?   @relation(fields: [devisId], references: [id])
-  lignes        FactureLigne[]
-
-  @@map("factures")
-}
-
-enum FactureType {
-  FACTURE
-  ACOMPTE
-  SITUATION
-  AVOIR
-}
-
-enum FactureStatus {
-  EN_ATTENTE
-  PAYEE
-  EN_RETARD
-  ANNULEE
-}
-
-// ─── LIGNES DE FACTURE ──────────────────────────────────────────────────────
-
-model FactureLigne {
-  id          String   @id @default(cuid())
-
-  position    Int      @default(0)
-  lotTitre    String?             // Nom du lot (copié du devis)
-
-  designation String
-  description String?
-
-  quantite    Float    @default(1)
-  unite       String   @default("u")
-
-  prixUnitHT  Float    @default(0)
-  tauxTVA     Float    @default(20)
-
-  factureId   String
-  facture     Facture  @relation(fields: [factureId], references: [id], onDelete: Cascade)
-
-  @@map("facture_lignes")
-}
-
-// ─── BIBLIOTHÈQUE ARTICLES ──────────────────────────────────────────────────
+// ─── BIBLIOTHÈQUE ARTICLES (consultée par les agents IA) ───────────────────
 
 model Article {
   id          String   @id @default(cuid())
@@ -484,8 +277,10 @@ model Article {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TABLES GÉRÉES HORS PRISMA (accédées via raw SQL)
-// - materiaux_btp : base de données matériaux BTP partagée
-// - agent_devis : devis générés par agents IA (Telegram, WhatsApp, SMS)
+// - materiaux_btp : base de données matériaux BTP partagée (référence prix)
+// - agent_devis : devis générés par agents IA via WhatsApp (photo, texte)
 // Ces tables ont des enums PostgreSQL natifs incompatibles avec prisma generate.
+// Marie et Samir consultent materiaux_btp pour les prix de référence et
+// agent_devis pour l'historique des devis envoyés à un client.
 // ═══════════════════════════════════════════════════════════════════════════════
 

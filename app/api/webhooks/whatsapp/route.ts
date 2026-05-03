@@ -104,45 +104,86 @@ async function sendDocument(
 
 // ─── Client lookup / link ───────────────────────────────────
 
+// ─── Matching auto numéro WhatsApp ↔ numéro Stripe ──────────
+//
+// Pivot WhatsApp-first (01/05/2026) : on ne demande plus de code link_<id>.
+// Le numéro WhatsApp inbound = clé d'identification.
+//
+// Au paiement Stripe (Payment Link), le numéro est obligatoire et stocké
+// dans clients.phone. Quand l'artisan écrit ensuite sur WhatsApp depuis
+// ce même numéro, on le reconnaît automatiquement.
+//
+// Lookup en deux temps : d'abord channel_links (pour les clients déjà liés),
+// puis clients.phone (premier message d'un nouvel abonné). Si match côté
+// clients.phone, on crée la channel_link à la volée.
+
+function normalizePhone(phone: string): string {
+  return phone.replace(/[^0-9]/g, "");
+}
+
+// Compare deux numéros (compare les 9 derniers chiffres pour être tolérant
+// au formatage avec ou sans préfixe pays, leading zero, etc.)
+function phoneMatches(a: string, b: string): boolean {
+  const na = normalizePhone(a);
+  const nb = normalizePhone(b);
+  if (na === nb) return true;
+  const tail = (n: string) => n.slice(-9);
+  return tail(na) === tail(nb) && tail(na).length === 9;
+}
+
 async function getClientByPhone(phone: string) {
-  const normalized = phone.replace(/[^0-9]/g, "");
-  const { data } = await supabase
+  const normalized = normalizePhone(phone);
+
+  // 1. Lookup via channel_links (clients déjà liés)
+  const { data: link } = await supabase
     .from("channel_links")
     .select("client_id")
     .eq("channel", "whatsapp")
     .eq("channel_user_id", normalized)
     .eq("is_active", true)
-    .single();
-  if (!data) return null;
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, plan, company, metier, ville, status, firstName, lastName")
-    .eq("id", data.client_id)
-    .single();
-  return client;
-}
+    .maybeSingle();
 
-async function linkWhatsAppAccount(phone: string, clientId: string, displayName?: string) {
-  const normalized = phone.replace(/[^0-9]/g, "");
-  const { data: client } = await supabase
+  if (link?.client_id) {
+    const { data: client } = await supabase
+      .from("clients")
+      .select("id, plan, company, metier, ville, status, firstName, lastName, phone")
+      .eq("id", link.client_id)
+      .single();
+    return client;
+  }
+
+  // 2. Pas de lien existant → match sur clients.phone (premier message)
+  // On compare les 9 derniers chiffres pour tolérer les variations de format.
+  // Stratégie sûre : récupérer les clients récents avec un phone non-null
+  // et matcher côté Node (un seul artisan correspond en pratique).
+  const tail = normalized.slice(-9);
+  if (tail.length !== 9) return null;
+
+  const { data: candidates } = await supabase
     .from("clients")
-    .select("id, firstName, company")
-    .eq("id", clientId)
-    .single();
-  if (!client) return null;
+    .select("id, plan, company, metier, ville, status, firstName, lastName, phone")
+    .not("phone", "is", null)
+    .in("status", ["ACTIVE", "TRIAL", "PAST_DUE"])
+    .order("created_at", { ascending: false })
+    .limit(1000);
+
+  const matched = (candidates || []).find((c) => c.phone && phoneMatches(c.phone, phone));
+  if (!matched) return null;
+
+  // Auto-link à la volée : crée la channel_link pour les prochains messages
   await supabase.from("channel_links").upsert(
     {
-      client_id: clientId,
+      client_id: matched.id,
       channel: "whatsapp",
       channel_user_id: normalized,
-      display_name: displayName,
       phone,
       is_active: true,
       linked_at: new Date().toISOString(),
     },
     { onConflict: "channel,channel_user_id" }
   );
-  return client;
+
+  return matched;
 }
 
 // ─── Quota check ────────────────────────────────────────────
@@ -244,39 +285,17 @@ async function processMessage(
   mediaId?: string,
   caption?: string
 ): Promise<void> {
-  const normalized = phone.replace(/[^0-9]/g, "");
+  const normalized = normalizePhone(phone);
   const trimmed = (text || "").trim();
   const lower = trimmed.toLowerCase();
 
-  // Link command
-  if (trimmed.startsWith("link_") || trimmed.startsWith("Link_")) {
-    const clientId = trimmed.replace(/^[Ll]ink_/, "");
-    const client = await linkWhatsAppAccount(phone, clientId, displayName);
-    if (!client) {
-      await sendMessage(phone, "Ce code ne correspond à aucun compte. Vérifie et réessaye.");
-      return;
-    }
-    const plan: PlanType = "ESSENTIEL";
-    const teamAgents = PLAN_AGENTS[plan];
-    let welcome = `Compte lié ✅\n\nBonjour ${client.firstName || displayName || ""} ! `;
-    if (teamAgents.length === 1) {
-      welcome += `Je suis ${DEFAULT_AGENT_NAMES.ADMIN}, ton bras droit pour ${client.company}.`;
-    } else {
-      welcome += `Voici ton équipe pour ${client.company} :\n`;
-      for (const t of teamAgents) welcome += `${AGENT_EMOJIS[t]} ${DEFAULT_AGENT_NAMES[t]}\n`;
-    }
-    welcome += `\nDis-moi ce dont tu as besoin (devis, relance, post Insta, prospects…), j'agis directement.\n\nCommandes : /marie /lucas /samir`;
-    await sendMessage(phone, welcome);
-    return;
-  }
-
-  // Help
-  if (["aide", "help", "menu"].includes(lower)) {
-    const client = await getClientByPhone(normalized);
+  // Help (avant le lookup pour répondre même aux non-clients)
+  if (["aide", "help", "menu", "/start"].includes(lower)) {
+    const client = await getClientByPhone(phone);
     if (!client) {
       await sendMessage(
         phone,
-        "Bienvenue sur iArtisan ! Connecte-toi sur iartisan.io > Onboarding pour récupérer ton code de liaison."
+        "Bienvenue sur iArtisan ! Pour activer tes agents IA, choisis ton offre sur iartisan.io. Tu paies, je t'écris ici directement."
       );
       return;
     }
@@ -292,12 +311,12 @@ async function processMessage(
     return;
   }
 
-  // Lookup client
-  const client = await getClientByPhone(normalized);
+  // Lookup client par numéro (matching auto)
+  const client = await getClientByPhone(phone);
   if (!client) {
     await sendMessage(
       phone,
-      "Bienvenue sur iArtisan !\n\nJe ne te reconnais pas encore. Connecte-toi sur iartisan.io > Onboarding pour récupérer ton code."
+      "Bienvenue sur iArtisan ! Je ne reconnais pas ce numéro. Si tu viens de t'abonner, vérifie que tu m'écris bien depuis le numéro que tu as renseigné lors du paiement. Sinon, choisis ton offre sur iartisan.io et je t'écrirai dès la confirmation."
     );
     return;
   }
