@@ -386,9 +386,9 @@ export const TOOLS: ToolDefinition[] = [
     name: "replyToReview",
     agent: "MARKETING",
     description:
-      "Rédige et publie une réponse à un avis Google. Ton calé sur la note (apaisant si 1-2 étoiles, chaleureux si 4-5). Demande validation à l'artisan SAUF si pre_approved=true.",
+      "Prépare un brouillon de réponse à un avis Google (toujours en draft, validation artisan requise). À APPELER DÈS QUE l'artisan te donne dans son message : (a) une note (1-5 étoiles ou /5 ou ★) ET (b) le texte de l'avis (ou même un résumé). Tu n'as PAS besoin d'attendre l'ID de l'avis ni le texte 'exact' — le texte fourni dans le message suffit. Détermine 'tone' = 'apaisant' si rating ≤ 2, 'neutre' si rating = 3, 'chaleureux' si rating ≥ 4. review_id peut être 'inline' si pas fourni.",
     argsHint:
-      '{ "review_id": "...", "rating": 1, "review_text": "...", "tone": "apaisant|chaleureux|neutre", "pre_approved"?: false }',
+      '{ "review_id": "inline", "rating": 2, "review_text": "<texte ou résumé fourni par l\'artisan>", "tone": "apaisant|chaleureux|neutre" }',
     exec: async (args, ctx) => {
       const { data, error } = await supabase
         .from("agent_tasks")
@@ -477,16 +477,31 @@ export const TOOLS: ToolDefinition[] = [
     name: "dunningStep",
     agent: "COMMERCIAL",
     description:
-      "Passe un impayé à l'étape suivante du process de recouvrement (relance simple → mise en demeure → contentieux). Programme l'action en tâche.",
+      "Programme une action de recouvrement pour un impayé. Tu PRÉCISES l'étape que l'artisan demande dans 'step' : 'relance_simple' (1er rappel courtois), 'mise_en_demeure' (formel, recommandé) ou 'contentieux' (huissier/avocat). Si l'artisan dit 'mise en demeure' → step=mise_en_demeure. Si l'artisan dit 'relance simple' ou juste 'relance' → step=relance_simple. Si l'artisan dit 'huissier' ou 'contentieux' → step=contentieux.",
     argsHint:
-      '{ "invoice_number": "F-2026-...", "client_name": "...", "amount_eur": 0, "current_step": "relance_simple|mise_en_demeure|contentieux" }',
+      '{ "invoice_number": "F-2026-...", "client_name": "...", "amount_eur": 0, "step": "relance_simple|mise_en_demeure|contentieux" }',
     exec: async (args, ctx) => {
-      const next =
-        args.current_step === "relance_simple"
-          ? "mise_en_demeure"
-          : args.current_step === "mise_en_demeure"
-            ? "contentieux"
-            : "relance_simple";
+      // Backward-compat : si l'agent envoie current_step (ancien nom),
+      // on essaie de l'interpréter raisonnablement.
+      let step = args.step as string | undefined;
+      if (!step && args.current_step) {
+        // Si "current_step" était passé, on suppose que c'est ce que
+        // l'artisan veut faire MAINTENANT (pas l'étape précédente).
+        step = args.current_step;
+      }
+      if (!step || !["relance_simple", "mise_en_demeure", "contentieux"].includes(step)) {
+        return {
+          ok: false,
+          summary:
+            "Étape de recouvrement non précisée. Dis à l'artisan : 'Tu veux que je commence par une relance simple, une mise en demeure, ou directement un contentieux (huissier) ?'",
+          error: "step_required",
+        };
+      }
+      const stepLabel: Record<string, string> = {
+        relance_simple: "relance simple",
+        mise_en_demeure: "mise en demeure",
+        contentieux: "contentieux",
+      };
       const { data, error } = await supabase
         .from("agent_tasks")
         .insert({
@@ -494,7 +509,7 @@ export const TOOLS: ToolDefinition[] = [
           agent_type: "COMMERCIAL",
           task_type: "dunning_step",
           scheduled_for: new Date().toISOString(),
-          payload: { ...args, next_step: next },
+          payload: { ...args, step },
           notify_phone: ctx.phone,
         })
         .select("id")
@@ -502,8 +517,8 @@ export const TOOLS: ToolDefinition[] = [
       if (error) return { ok: false, summary: "étape recouvrement non programmée", error: error.message };
       return {
         ok: true,
-        summary: `Recouvrement → ${next} (${args.invoice_number || "facture"})`,
-        data: { task_id: data!.id, next_step: next },
+        summary: `Recouvrement programmé : ${stepLabel[step]} (${args.invoice_number || "facture"})`,
+        data: { task_id: data!.id, step },
       };
     },
   },
