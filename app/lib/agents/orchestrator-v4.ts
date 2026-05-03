@@ -339,6 +339,62 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     finalReply = "OK — j'ai bien reçu, je reviens vers toi avec une suite concrète.";
   }
 
+  // 7.5) Garde-fou anti-promesse temporelle creuse
+  //
+  // Les agents (surtout Marie face à de la frustration) ont tendance à promettre
+  // "je corrige ça demain matin avant 8h" sans appeler scheduleTask — exactement
+  // l'hallucination qu'on veut éliminer. Le prompt système le dit explicitement,
+  // mais le LLM dérape encore. Ce garde programmatique attrape les patterns
+  // résiduels et nettoie la réponse.
+  const hasScheduleTaskCall = toolCalls.some((c) => c.name === "scheduleTask");
+  if (!hasScheduleTaskCall) {
+    const TEMPORAL_PROMISE_PATTERNS = [
+      // "demain matin", "demain soir", "demain à 8h"
+      /\b(demain|cette\s?nuit|ce\s?soir|cet\s?après-?midi)\s+(matin|soir|midi|à\s?\d{1,2}h(?:\d{2})?|avant\s?\d{1,2}h(?:\d{2})?)?\b/gi,
+      // "avant 8h", "d'ici 17h", "avant la fin de la journée"
+      /\b(avant|d['’]ici)\s+(\d{1,2}h(?:\d{2})?|midi|la\s?fin\s?de\s?(?:la\s?)?journée)\b/gi,
+      // "vendredi", "lundi", "la semaine prochaine"
+      /\b(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|la\s?semaine\s?prochaine)\b/gi,
+      // "dans X minutes/heures/jours"
+      /\bdans\s+\d+\s+(minutes?|heures?|jours?|semaines?)\b/gi,
+    ];
+
+    let cleanedReply = finalReply;
+    let removedCount = 0;
+    for (const re of TEMPORAL_PROMISE_PATTERNS) {
+      // Pour chaque phrase qui contient un de ces patterns, on la retire entière
+      // (split par phrase = "; ", ". ", "! ", "? ").
+      const sentences = cleanedReply.split(/(?<=[.!?])\s+/);
+      const kept = sentences.filter((s) => {
+        if (re.test(s)) {
+          removedCount++;
+          return false;
+        }
+        return true;
+      });
+      cleanedReply = kept.join(" ");
+    }
+
+    if (removedCount > 0 && cleanedReply.trim() !== finalReply.trim()) {
+      console.warn(
+        `[orchestrator] Removed ${removedCount} temporal promise sentence(s) from agent ${target} (no scheduleTask call). Original: "${finalReply.slice(0, 200)}"`
+      );
+      finalReply = cleanedReply.trim() ||
+        "OK, dis-moi exactement ce qu'il faut corriger et je le fais maintenant.";
+    }
+  }
+
+  // Garde-fou anti-auto-flagellation excessive : "Désolée j'ai merdé" et
+  // variants ne sont pas un comportement d'agent professionnel. On nettoie
+  // les ouvertures d'auto-flagellation tout en gardant le reste utile.
+  finalReply = finalReply.replace(
+    /^(Désolée?,?\s+(j['’]?ai\s+merdé|j['’]?ai\s+merdoyé|j['’]?ai\s+raté|j['’]?ai\s+foiré|c['’]?était\s+nul)[.!?]?\s*)/i,
+    ""
+  ).trim();
+  if (!finalReply) {
+    finalReply = "Dis-moi exactement ce qu'il faut corriger et je m'en occupe.";
+  }
+
   // 8) Send the agent's final reply
   const prefix = prefixFor(target, agentName);
   await sendMessage(phone, prefix + finalReply);
