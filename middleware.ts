@@ -15,11 +15,13 @@ export async function middleware(req: NextRequest) {
 
   // ─── Séparation domaines : app.iartisan.io = espace client/admin uniquement ───
   // Sur app.iartisan.io, les pages publiques (landing, CGV, mentions...) redirigent vers www
+  // Exception : /demo est volontairement servi sur app.iartisan.io (lien démo prospects).
   const isAppDomain = hostname.startsWith("app.");
   const isPublicPage = !pathname.startsWith("/client") &&
     !pathname.startsWith("/admin") &&
     !pathname.startsWith("/api") &&
     !pathname.startsWith("/login") &&
+    !pathname.startsWith("/demo") &&
     !pathname.startsWith("/_next") &&
     !pathname.startsWith("/favicon") &&
     !pathname.startsWith("/test-agents");
@@ -53,6 +55,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/client/login") ||
     pathname.startsWith("/client/forgot-password") ||
     pathname.startsWith("/client/signup") ||
+    pathname.startsWith("/demo") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/client/auth") ||
     pathname.startsWith("/api/leads") ||
@@ -62,6 +65,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/agents/worker") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/test") ||
+    pathname.startsWith("/api/health") ||
     pathname.startsWith("/test-agents") ||
     pathname.startsWith("/api/admin/knowledge/seed") ||
     pathname.startsWith("/_next") ||
