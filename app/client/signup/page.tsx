@@ -15,11 +15,12 @@ const PLANS = [
     key: "ESSENTIEL",
     name: "Essentiel",
     price: 49,
-    setup: 50,
+    setup: 0, // setup fee désactivé tant que webhook trial_will_end pas en place (TODO J21)
     trial: true,
     desc: "Votre secrétaire IA",
     reframe: "Le prix d'un plein de gasoil",
     result: "~10h/semaine de paperasse en moins",
+    agents: [{ emoji: "👩", name: "Marie", role: "Secrétaire IA" }],
     features: [
       "Devis et factures automatiques",
       "Relance clients par email",
@@ -37,6 +38,10 @@ const PLANS = [
     desc: "Être trouvé par vos clients",
     reframe: "Moins qu'un encart dans les Pages Jaunes",
     result: "Visible sur Google en 2 à 4 semaines",
+    agents: [
+      { emoji: "👩", name: "Marie", role: "Secrétaire IA" },
+      { emoji: "👨", name: "Lucas", role: "Marketing IA" },
+    ],
     features: [
       "Tout de Essentiel +",
       "Site web et fiche Google au top",
@@ -54,6 +59,11 @@ const PLANS = [
     desc: "On vous trouve de nouveaux clients",
     reframe: "Rentabilisé dès le 1er nouveau client",
     result: "5 à 15 nouveaux contacts par mois",
+    agents: [
+      { emoji: "👩", name: "Marie", role: "Secrétaire IA" },
+      { emoji: "👨", name: "Lucas", role: "Marketing IA" },
+      { emoji: "🧔", name: "Samir", role: "Commercial IA" },
+    ],
     features: [
       "Tout de Pro +",
       "Prospection automatique dans votre zone",
@@ -207,16 +217,21 @@ function SignupContent() {
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
                         <div style={{ fontSize: 28, fontWeight: 800, color: C.dark, lineHeight: 1 }}>{plan.price}€</div>
-                        <div style={{ fontSize: 11, color: C.muted }}>/mois HT</div>
+                        <div style={{ fontSize: 11, color: C.muted }}>/mois</div>
                       </div>
                     </div>
 
-                    {/* Setup fee ou trial badge */}
-                    {plan.setup > 0 && (
-                      <div style={{ background: `${C.yellow}20`, borderRadius: 8, padding: "6px 12px", marginBottom: 10, fontSize: 12, color: C.dark, fontWeight: 600, display: "inline-block" }}>
-                        Frais de mise en service : {plan.setup}€ HT
-                      </div>
-                    )}
+                    {/* Agents IA inclus */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                      {plan.agents.map((a, i) => (
+                        <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 20, padding: "4px 10px", fontSize: 12 }}>
+                          <span style={{ fontSize: 14 }}>{a.emoji}</span>
+                          <span style={{ fontWeight: 700, color: C.dark }}>{a.name}</span>
+                          <span style={{ color: C.muted }}>· {a.role}</span>
+                        </div>
+                      ))}
+                    </div>
+
                     {plan.trial && (
                       <div style={{ background: `${C.green}12`, borderRadius: 8, padding: "6px 12px", marginBottom: 10, fontSize: 12, color: C.green, fontWeight: 700, display: "inline-block" }}>
                         <Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} /> 14 jours d'essai gratuit
@@ -294,9 +309,13 @@ function SignupContent() {
                 </div>
                 <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 2 }}>
                   <Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} />14 jours gratuits — 0€ aujourd'hui
-                  {selectedPlanData.setup > 0 && (
-                    <span style={{ color: C.muted, marginLeft: 8 }}>· + {selectedPlanData.setup}€ HT de mise en service après l'essai</span>
-                  )}
+                </div>
+                <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                  {selectedPlanData.agents.map((a, i) => (
+                    <span key={i} style={{ fontSize: 11, color: C.muted }}>
+                      {a.emoji} {a.name}{i < selectedPlanData.agents.length - 1 ? " ·" : ""}
+                    </span>
+                  ))}
                 </div>
               </div>
               <button
@@ -393,11 +412,10 @@ function SignupContent() {
 
                 <p style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 14, lineHeight: 1.6 }}>
                   En continuant, vous acceptez nos{" "}
-                  <a href="/cgv" target="_blank" style={{ color: C.muted, textDecoration: "underline" }}>conditions d'utilisation</a>.<br />
-                  {selectedPlanData.setup > 0
-                    ? `0€ aujourd'hui. Après 14 jours d'essai : ${selectedPlanData.setup}€ HT de mise en service + ${selectedPlanData.price}€ HT premier mois. Puis ${selectedPlanData.price}€/mois HT.`
-                    : "Aucun prélèvement pendant l'essai gratuit."
-                  }
+                  <a href="/cgv" target="_blank" style={{ color: C.muted, textDecoration: "underline" }}>conditions générales</a>{" "}
+                  et notre{" "}
+                  <a href="/confidentialite" target="_blank" style={{ color: C.muted, textDecoration: "underline" }}>politique de confidentialité</a>.<br />
+                  Aucun prélèvement pendant les 14 jours d&apos;essai. Puis {selectedPlanData.price}€/mois (TVA non applicable, art. 293 B du CGI).
                 </p>
               </form>
             </div>
@@ -417,6 +435,26 @@ function SignupContent() {
           </>
         )}
       </div>
+
+      {/* ═══ Footer mentions légales micro ═══ */}
+      <footer style={{ borderTop: `1px solid ${C.border}`, padding: "20px 16px 28px", marginTop: 20 }}>
+        <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+            <strong style={{ color: C.dark }}>iArtisan</strong> · SIRET 884 858 234 00021 · 270 Rue Pierre Duhem, 13290 Aix-en-Provence
+            <br />
+            Micro-entreprise · TVA non applicable, art. 293 B du CGI · APE 63.12Z (Portails Internet)
+          </div>
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
+            <a href="/mentions-legales" target="_blank" style={{ fontSize: 11, color: C.muted, textDecoration: "none" }}>Mentions légales</a>
+            <span style={{ color: C.border, fontSize: 11 }}>·</span>
+            <a href="/confidentialite" target="_blank" style={{ fontSize: 11, color: C.muted, textDecoration: "none" }}>Confidentialité</a>
+            <span style={{ color: C.border, fontSize: 11 }}>·</span>
+            <a href="/cgv" target="_blank" style={{ fontSize: 11, color: C.muted, textDecoration: "none" }}>CGV</a>
+            <span style={{ color: C.border, fontSize: 11 }}>·</span>
+            <a href="https://www.iartisan.io" style={{ fontSize: 11, color: C.muted, textDecoration: "none" }}>iartisan.io</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
