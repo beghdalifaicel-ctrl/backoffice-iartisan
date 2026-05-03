@@ -182,6 +182,13 @@ export async function validateAgentReply(input: ValidatorInput): Promise<Validat
     const hasMajor = violations.some((v) => v.severity === 'major');
     const needsRetry = hasMajor || !!obj.needs_retry;
 
+    // Toujours logguer le verdict pour debug/observabilité
+    console.log(
+      `[reflective-validator] verdict | agent=${input.agentType} | needs_retry=${needsRetry} | violations=[${violations
+        .map((v) => `${v.type}(${v.severity})`)
+        .join(',')}] | hint="${(obj.correction_hint || '').slice(0, 100)}"`
+    );
+
     return {
       needs_retry: needsRetry,
       violations,
@@ -189,7 +196,7 @@ export async function validateAgentReply(input: ValidatorInput): Promise<Validat
       raw: obj,
     };
   } catch (err: any) {
-    console.error('[reflective-validator] error:', err?.message || err);
+    console.error('[reflective-validator] error:', err?.message || err, '| raw:', err?.stack || '');
     // En cas d'erreur du validateur, on ne bloque pas le tour : on laisse passer.
     return { needs_retry: false, violations: [], correction_hint: '' };
   }

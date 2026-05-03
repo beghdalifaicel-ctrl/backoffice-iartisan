@@ -409,6 +409,11 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   const replyBeforeReflexive = finalReply;
   const customInstructionsForRetry = await getCustomInstructions(client.id, target);
   let validatorVerdict: ValidatorVerdict | null = null;
+  console.log(
+    `[orchestrator] calling reflective validator | agent=${target} | replyLen=${finalReply.length} | toolsCalled=[${toolCalls
+      .map((c) => c.name)
+      .join(",")}]`
+  );
   try {
     validatorVerdict = await validateAgentReply({
       agentType: target,
