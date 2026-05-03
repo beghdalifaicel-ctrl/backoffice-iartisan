@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { stripe, PLANS } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import Stripe from "stripe";
 import { sendSubscriptionActiveEmail, sendTrialEndingEmail, sendAdminNotification, sendPaymentReminderEmail } from "@/lib/email";
@@ -111,6 +111,11 @@ export async function POST(req: NextRequest) {
       }
 
       // ─── Essai terminé (J-3) ───
+      // Stripe envoie ce webhook 3 jours avant la fin du trial. On l'utilise pour :
+      //   1. Envoyer l'email de relance "votre essai se termine dans 3 jours"
+      //   2. Ajouter le setup fee comme invoice item (facturé sur la 1ère vraie facture)
+      //      → Stripe Checkout en mode subscription ne supporte pas add_invoice_items au signup,
+      //        donc on l'attache ici, juste avant que la 1ère facture soit générée.
       case "customer.subscription.trial_will_end": {
         const sub = event.data.object as Stripe.Subscription;
         const trialClient = await prisma.client.findFirst({ where: { stripeSubscriptionId: sub.id } });
@@ -121,6 +126,77 @@ export async function POST(req: NextRequest) {
             daysLeft: 3,
             plan: planNames[trialClient.plan] || trialClient.plan,
           });
+
+          // ─── Setup fee : attacher l'invoice item à la subscription ───
+          const planKey = trialClient.plan as keyof typeof PLANS;
+          const setupFee = PLANS[planKey]?.setup ?? 0;
+
+          if (setupFee > 0 && trialClient.stripeCustomerId) {
+            try {
+              // Idempotence : ne pas re-créer si un invoice item setup_fee existe déjà
+              // pour cette subscription (au cas où Stripe rejoue le webhook).
+              const existing = await stripe.invoiceItems.list({
+                customer: trialClient.stripeCustomerId,
+                limit: 100,
+                pending: true,
+              });
+              const alreadyAdded = existing.data.some(
+                (it) => it.metadata?.kind === "setup_fee" && it.metadata?.subscription_id === sub.id
+              );
+
+              if (alreadyAdded) {
+                console.log(`[webhook] Setup fee déjà attaché pour sub ${sub.id} — skip`);
+              } else {
+                const invoiceItem = await stripe.invoiceItems.create({
+                  customer: trialClient.stripeCustomerId,
+                  subscription: sub.id,
+                  amount: setupFee,
+                  currency: "eur",
+                  description: `Frais de mise en service — Plan ${planNames[planKey] || planKey}`,
+                  metadata: {
+                    kind: "setup_fee",
+                    plan: planKey,
+                    client_id: trialClient.id,
+                    subscription_id: sub.id,
+                  },
+                });
+                console.log(
+                  `[webhook] Setup fee ${setupFee}c attaché à sub ${sub.id} ` +
+                  `(client ${trialClient.id}, item ${invoiceItem.id})`
+                );
+
+                // Notif admin
+                await sendAdminNotification(`Setup fee attaché - ${trialClient.company}`, {
+                  title: "Setup fee facturé sur la 1ère facture",
+                  details: {
+                    "Client": `${trialClient.firstName} ${trialClient.lastName}`,
+                    "Entreprise": trialClient.company,
+                    "Plan": planNames[planKey] || planKey,
+                    "Montant setup": `${(setupFee / 100).toFixed(2)}€`,
+                    "Subscription": sub.id,
+                  },
+                  ctaLabel: "Voir dans Stripe",
+                  ctaUrl: `https://dashboard.stripe.com/subscriptions/${sub.id}`,
+                });
+              }
+            } catch (feeErr: any) {
+              // Ne pas faire planter le webhook si le setup fee échoue — on a au moins envoyé l'email.
+              console.error(
+                `[webhook] Erreur création setup fee pour sub ${sub.id}:`,
+                feeErr.message
+              );
+              await sendAdminNotification(`⚠️ Setup fee KO - ${trialClient.company}`, {
+                title: "Échec attachement setup fee",
+                details: {
+                  "Client": `${trialClient.firstName} ${trialClient.lastName}`,
+                  "Subscription": sub.id,
+                  "Erreur": feeErr.message,
+                },
+                ctaLabel: "Voir dans Stripe",
+                ctaUrl: `https://dashboard.stripe.com/subscriptions/${sub.id}`,
+              });
+            }
+          }
         }
         break;
       }

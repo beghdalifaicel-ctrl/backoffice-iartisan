@@ -93,17 +93,15 @@ export async function POST(req: NextRequest) {
     if (hasTrial) {
       checkoutParams.subscription_data = { trial_period_days: 14 };
     }
-    // TODO(Phase 2 J21) — Frais de mise en service.
-    // Stripe Checkout Session mode=subscription ne supporte ni `invoice_items` ni
-    // `add_invoice_items` dans `subscription_data`. Pour facturer le setup fee à la
-    // fin du trial, mettre en place un webhook `customer.subscription.trial_will_end`
-    // qui crée un invoice item via stripe.invoiceItems.create({ customer, price_data })
-    // avant que la première facture soit générée.
-    // En attendant : le setup fee n'est PAS facturé. Logguer pour suivi.
+    // Frais de mise en service (setup fee) :
+    // Stripe Checkout en mode=subscription n'accepte pas `add_invoice_items` côté checkout.
+    // Le setup fee est attaché à la subscription par le webhook `customer.subscription.trial_will_end`
+    // (J-3 avant la fin du trial), ce qui le fait apparaître sur la 1ère vraie facture.
+    // Voir : app/api/webhooks/stripe/route.ts → case "customer.subscription.trial_will_end"
     if (hasSetupFee) {
-      console.warn(
+      console.log(
         `[signup] Setup fee de ${PLANS[planKey].setup}c (${PLANS[planKey].name}) ` +
-        `non facturé pour client ${clientId} — webhook trial_will_end à implémenter (J21)`
+        `programmé pour client ${clientId} via webhook trial_will_end`
       );
     }
 
