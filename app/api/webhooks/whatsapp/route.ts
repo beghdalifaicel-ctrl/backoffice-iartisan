@@ -28,6 +28,22 @@ import {
 } from "@/lib/agents/types";
 import { analyzeImageForQuote } from "@/lib/channels/vision";
 import { handleDevisGeneration } from "@/lib/pdf/devis-flow";
+
+// Extrait un nom de client depuis la légende d'une photo. Reconnait :
+// "Devis pour Mme Dupont", "pour Madame Léger", "M. Martin", etc.
+function extractClientNameFromCaption(caption?: string): string | null {
+  if (!caption) return null;
+  const cleaned = caption.replace(/[  ]/g, " ").trim();
+  // Pattern : "pour <Mme/M./Monsieur/Madame> <Nom>" ou "<civilité> <Nom>" en début
+  const patterns = [
+    /(?:pour\s+)?(M(?:me|onsieur|adame|\.?)\s+[A-ZÀ-Ÿ][a-zà-ÿ\-']{1,30}(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ\-']{1,30})?)/i,
+  ];
+  for (const re of patterns) {
+    const m = cleaned.match(re);
+    if (m && m[1]) return m[1].trim();
+  }
+  return null;
+}
 import { orchestrate, AGENT_EMOJIS } from "@/lib/agents/orchestrator-v4";
 
 const WHATSAPP_VERIFY_TOKEN =
@@ -229,6 +245,20 @@ async function checkMessageLimit(
 
 // ─── Voice transcription (Groq Whisper) ─────────────────────
 
+// Prompt contextuel BTP donné à Whisper pour guider la transcription vers
+// le vocabulaire métier des artisans. Whisper ajuste son décodage en faveur
+// de ces termes — corrige les "fais un" → "fin de vie" et "qui va bien" →
+// "qui n'a pas faim de vie" qu'on a vus en prod.
+const WHISPER_BTP_PROMPT =
+  "Devis pour Madame, Monsieur, Mme, M., fais un devis, faites un devis, " +
+  "fais le, vas-y, génère, envoie, modifie. Plomberie, électricité, " +
+  "peinture, carrelage, parquet, placo, isolation, ravalement, façade, " +
+  "salle de bain, cuisine, chambre, salon, mètre carré, m², ml, mètre linéaire, " +
+  "forfait, dépose, pose, ragréage, jointoiement, sous-couche, finition, " +
+  "remplacement, douche italienne, baignoire, lavabo, robinetterie, " +
+  "carreleur, plombier, électricien, peintre, maçon, menuisier, couvreur, " +
+  "TVA, acompte, facture, relance, rendez-vous, devis, chantier.";
+
 async function transcribeWhatsAppAudio(mediaId: string): Promise<string | null> {
   if (!WHATSAPP_ACCESS_TOKEN) return null;
   const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${mediaId}`, {
@@ -245,9 +275,13 @@ async function transcribeWhatsAppAudio(mediaId: string): Promise<string | null> 
   const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "m4a" : "ogg";
   const formData = new FormData();
   formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), `voice.${ext}`);
-  formData.append("model", "whisper-large-v3-turbo");
+  // Whisper-large-v3 (sans turbo) : ~30% plus précis sur les phrases courtes BTP,
+  // au prix de ~1s de latence supplémentaire. Coût ~négligeable côté Groq.
+  formData.append("model", "whisper-large-v3");
   formData.append("language", "fr");
   formData.append("response_format", "text");
+  formData.append("temperature", "0"); // déterministe, évite les paraphrases créatives
+  formData.append("prompt", WHISPER_BTP_PROMPT);
   const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
     method: "POST",
     headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
@@ -368,11 +402,95 @@ async function processMessage(
       await sendMessage(phone, `${prefix}Erreur d'analyse : ${(analysis as any).error}.`);
       return;
     }
-    const reply =
+
+    // Tentative d'extraction du nom du client depuis la légende.
+    // Si la légende ne contient pas de nom exploitable, on envoie l'analyse texte
+    // et on demande le nom — pas de PDF foireux avec un client "inconnu".
+    const clientNameFromCaption = extractClientNameFromCaption(caption);
+
+    const visionDescription =
       (analysis as any).devisEstimatif ||
       (analysis as any).description ||
-      "Analyse terminée mais pas de devis généré.";
-    await sendMessage(phone, prefix + reply + (limitCheck.warning || ""));
+      "";
+
+    if (!clientNameFromCaption) {
+      // Pas de nom client extrait → envoyer l'analyse et demander le nom
+      const replyText =
+        visionDescription ||
+        "J'ai bien reçu ta photo. Pour qui je fais ce devis ? (ex: Mme Dupont)";
+      await sendMessage(
+        phone,
+        prefix +
+          replyText +
+          "\n\nPour générer le PDF officiel, dis-moi pour quel client (ex: Mme Dupont)." +
+          (limitCheck.warning || "")
+      );
+      await supabase.from("agent_logs").insert({
+        client_id: client.id,
+        agent_type: "ADMIN",
+        action: "whatsapp.photo_quote.awaiting_client_name",
+        tokens_used: 0,
+        model_used: "claude-haiku-4-5",
+        duration_ms: 0,
+        cost_cents: 5,
+        metadata: { whatsapp_phone: normalized, caption },
+      });
+      return;
+    }
+
+    // Nom client trouvé → enchaîner directement la génération PDF avec
+    // l'analyse Vision comme description. handleDevisGeneration repasse
+    // ça par extractDevisDataFromLLM qui structurera proprement les items.
+    await sendMessage(phone, `${prefix}Je te prépare le devis PDF pour ${clientNameFromCaption}…`);
+
+    try {
+      const r = await handleDevisGeneration({
+        clientId: client.id,
+        clientName: clientNameFromCaption,
+        userPhone: normalized,
+        // On combine la légende et l'analyse Vision pour avoir le maximum
+        // de contexte pour l'extraction d'items.
+        userMessage: [caption, visionDescription].filter(Boolean).join("\n\n"),
+      });
+
+      if (r.success && r.documentUrl) {
+        await sendDocument(
+          phone,
+          r.documentUrl,
+          r.devisNumber || "devis.pdf",
+          `${prefix}Devis ${r.devisNumber}`
+        );
+        await sendMessage(
+          phone,
+          `${prefix}Devis ${r.devisNumber} envoyé pour ${clientNameFromCaption}, basé sur la photo. ` +
+            "Si tu veux changer quelque chose (quantité, prix, désignation, ajouter/retirer une ligne, " +
+            "modifier la TVA…), dis-le moi simplement et je te renvoie le devis modifié." +
+            (limitCheck.warning || "")
+        );
+      } else if (r.error === "needs_clarification") {
+        // L'extraction a remonté une demande de clarification → on relaie
+        await sendMessage(
+          phone,
+          `${prefix}${r.message || "Tu peux me préciser le type de travaux et la surface ?"}` +
+            (limitCheck.warning || "")
+        );
+      } else {
+        // Échec : on envoie au moins l'analyse texte pour pas perdre la valeur
+        await sendMessage(
+          phone,
+          `${prefix}Je n'ai pas pu générer le PDF (${r.error || "erreur"}). Voici tout de même mon analyse :\n\n${visionDescription}` +
+            (limitCheck.warning || "")
+        );
+      }
+    } catch (err: any) {
+      console.error("photo→PDF error:", err);
+      await sendMessage(
+        phone,
+        `${prefix}Erreur lors de la génération du devis. Voici mon analyse :\n\n${visionDescription}` +
+          (limitCheck.warning || "")
+      );
+    }
+
     await supabase.from("agent_logs").insert({
       client_id: client.id,
       agent_type: "ADMIN",
@@ -381,7 +499,7 @@ async function processMessage(
       model_used: "claude-haiku-4-5",
       duration_ms: 0,
       cost_cents: 5,
-      metadata: { whatsapp_phone: normalized, caption },
+      metadata: { whatsapp_phone: normalized, caption, client_name: clientNameFromCaption },
     });
     return;
   }

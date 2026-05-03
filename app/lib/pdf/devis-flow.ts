@@ -81,30 +81,42 @@ interface AgentDevisRow {
 async function extractDevisDataFromLLM(
   clientContext: any,
   userMessage: string
-): Promise<{ items: DevisItem[]; conditions?: string } | null> {
+): Promise<{ items: DevisItem[]; conditions?: string; needsClarification?: string } | null> {
   const systemPrompt = `Tu es un assistant expert en extraction de données pour la génération de devis BTP.
 
 Analyse le message de l'utilisateur et extrais une liste d'articles à inclure dans le devis.
 
-Format ta réponse EXACTEMENT en JSON valide (UNIQUEMENT le JSON, pas d'autre texte) :
+Format ta réponse EXACTEMENT en JSON valide (UNIQUEMENT le JSON, pas d'autre texte).
+
+CAS 1 — La demande contient AU MOINS UN poste explicite (description claire d'une prestation et au moins un repère de quantité ou de prix) :
 {
   "items": [
-    {
-      "description": "Description de l'article",
-      "quantity": 1,
-      "unitPriceHT": 100.00,
-      "unite": "u"
-    }
+    { "description": "Description précise", "quantity": 1, "unitPriceHT": 100.00, "unite": "u" }
   ],
-  "conditions": "Conditions de paiement si mentionnées (optional)"
+  "conditions": "Conditions de paiement si mentionnées"
 }
 
-Règles:
-- Les prix doivent être réalistes pour le métier ${clientContext.metier}
-- Si l'utilisateur ne donne que des montants globaux, estime une répartition logique
-- Utilise les unités appropriées: u (unité), m² (m carré), ml (mètre linéaire), h (heure), forfait
-- Arrondir aux centimes
-- Si pas assez d'info, propose une devis basique avec 2-3 postes standards`;
+CAS 2 — La demande est TROP VAGUE pour produire un devis fiable (juste "fais un devis", ou un nom de client sans aucune prestation, ou transcription incohérente) :
+{
+  "items": [],
+  "needsClarification": "Question CONCRÈTE et COURTE à poser à l'artisan pour clarifier (ex: 'Quel type de travaux ? Sur combien de m² ?')"
+}
+
+## Règles strictes (CAS 1)
+- Les prix doivent être réalistes pour le métier ${clientContext.metier} en France.
+- Tu ne PEUX PAS inventer de postes que l'artisan n'a PAS mentionnés. Pas de ravalement si on parle de carrelage. Pas de plomberie si on parle de peinture.
+- Tu peux ajouter des opérations LOGIQUEMENT NÉCESSAIRES à la prestation demandée (ragréage avant pose carrelage, sous-couche avant peinture) avec une quantité COHÉRENTE — mais jamais des postes premium / options / extras non demandés.
+- Unités : u (unité), m² (m carré), ml (mètre linéaire), h (heure), forfait.
+- Arrondir aux centimes.
+
+## Règles strictes (CAS 2)
+- Tu utilises CAS 2 dès que :
+  - L'artisan dit juste "fais un devis" sans plus
+  - Tu n'identifies aucune prestation concrète (matière + opération)
+  - La transcription semble incohérente ("fin de vie", "qui n'a pas faim de vie", autres absurdités hors-contexte)
+  - L'artisan donne juste un nom de client sans description de chantier
+- Tu NE remplis JAMAIS items avec des postes random. Mieux vaut demander que d'inventer un devis foireux.
+- needsClarification doit être une question UTILE et SPÉCIFIQUE — pas "peux-tu être plus précis", mais "Quel type de travaux et combien de m² ?"`;
 
   try {
     const response = await callLLM({
@@ -122,6 +134,24 @@ Règles:
     if (!parsed.items || !Array.isArray(parsed.items)) {
       console.warn('[Devis] Invalid items structure from LLM:', parsed);
       return null;
+    }
+
+    // CAS 2 : items vide + clarification demandée → on remonte ça pour que
+    // Marie puisse poser la question à l'artisan au lieu de générer un PDF foireux.
+    if (parsed.items.length === 0 && parsed.needsClarification) {
+      return {
+        items: [],
+        needsClarification: String(parsed.needsClarification).slice(0, 300),
+      };
+    }
+
+    if (parsed.items.length === 0) {
+      // Demande totalement vide ET pas de question proposée → fallback safe
+      return {
+        items: [],
+        needsClarification:
+          "Tu peux me préciser le type de travaux et la surface concernée ?",
+      };
     }
 
     return {
@@ -359,12 +389,23 @@ export async function handleDevisGeneration(
 
     // 2. Extract devis data from user message
     const extractedData = await extractDevisDataFromLLM(client, request.userMessage);
-    if (!extractedData || !extractedData.items || extractedData.items.length === 0) {
+    if (!extractedData) {
       return {
         success: false,
         error: 'Failed to extract devis items',
         message:
-          "Je n'ai pas pu extraire les articles du devis. Pouvez-vous être plus détaillé ? (ex: \"Pose de carrelage 50m² à 80€/m²\")",
+          "Je n'ai pas réussi à extraire les articles du devis. Tu peux reformuler ? (ex: \"pose de carrelage 50m² à 80€/m² + dépose 1500€\")",
+      };
+    }
+
+    // L'extraction a renvoyé une demande de clarification : on remonte le message
+    // intact pour que Marie puisse le poser à l'artisan AVANT de générer un PDF.
+    // Pas de PDF foireux quand la demande est ambiguë.
+    if (extractedData.items.length === 0 && extractedData.needsClarification) {
+      return {
+        success: false,
+        error: 'needs_clarification',
+        message: extractedData.needsClarification,
       };
     }
 
