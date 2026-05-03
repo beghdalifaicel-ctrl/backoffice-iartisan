@@ -23,6 +23,131 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (event.type) {
+      // ─── Paiement Payment Link initial → créer le client + premier message WhatsApp ───
+      //
+      // Pivot WhatsApp-first (01/05/2026) : l'inscription se fait via Stripe
+      // Payment Links (champ téléphone obligatoire). Ce handler crée le Client
+      // en DB s'il n'existe pas et déclenche le premier message Marie sur WhatsApp.
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const customerId = session.customer as string;
+        const subscriptionId = session.subscription as string;
+
+        if (!customerId || !subscriptionId) {
+          console.warn("[stripe.webhook] checkout.session.completed sans customer/subscription");
+          break;
+        }
+
+        // 1. Récupérer les détails de la subscription pour identifier le plan
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        const priceId = sub.items.data[0]?.price.id;
+        let plan: "ESSENTIEL" | "PRO" | "MAX" = "ESSENTIEL";
+        if (priceId === process.env.STRIPE_PRICE_PRO) plan = "PRO";
+        if (priceId === process.env.STRIPE_PRICE_MAX) plan = "MAX";
+
+        // 2. Récupérer le numéro de téléphone (champ obligatoire des Payment Links)
+        const phone =
+          session.customer_details?.phone ||
+          (session.custom_fields?.find((f) => f.key === "phone")?.text?.value as string | undefined);
+
+        const email = session.customer_details?.email || "";
+        const fullName = session.customer_details?.name || "";
+        const [firstName, ...rest] = fullName.split(" ");
+        const lastName = rest.join(" ") || "";
+
+        // 3. Créer ou mettre à jour le Client
+        const existing = await prisma.client.findUnique({
+          where: { stripeCustomerId: customerId },
+        });
+
+        let client;
+        if (existing) {
+          client = await prisma.client.update({
+            where: { id: existing.id },
+            data: {
+              stripeSubscriptionId: subscriptionId,
+              plan,
+              status: "TRIAL",
+              phone: phone || existing.phone,
+              email: email || existing.email,
+            },
+          });
+        } else if (email) {
+          client = await prisma.client.create({
+            data: {
+              email,
+              firstName: firstName || "Artisan",
+              lastName,
+              phone,
+              company: fullName || "À compléter",
+              metier: "À compléter",
+              ville: "À compléter",
+              plan,
+              status: "TRIAL",
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: subscriptionId,
+              trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+            },
+          });
+        } else {
+          console.warn("[stripe.webhook] checkout.session.completed sans email — skip");
+          break;
+        }
+
+        // 4. Notif admin
+        await sendAdminNotification(`Nouvel abonnement - ${client.company}`, {
+          title: "Nouveau client iArtisan via Payment Link",
+          details: {
+            "Client": `${client.firstName} ${client.lastName}`,
+            "Email": client.email,
+            "Téléphone": client.phone || "(non fourni)",
+            "Plan": plan,
+            "Subscription": subscriptionId,
+          },
+          ctaLabel: "Voir le client",
+          ctaUrl: `https://app.iartisan.io/admin/clients`,
+        });
+
+        // 5. Déclencher le premier message WhatsApp signé Marie
+        // (handler interne ; en cas d'échec on laisse passer — le matching auto
+        // au premier message inbound de l'artisan prendra le relais)
+        if (phone) {
+          try {
+            const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+            const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+            if (accessToken && phoneNumberId) {
+              const PLAN_TEAM: Record<string, string> = {
+                ESSENTIEL: "Je suis Marie, ton bras droit pour gérer ta présence Google.",
+                PRO: "Je suis Marie. Avec Lucas (marketing), on s'occupe de ta visibilité en ligne.",
+                MAX: "Je suis Marie. Avec Lucas (marketing) et Samir (commercial), on est l'équipe complète qui bosse pour toi.",
+              };
+              const welcome = `📋 Marie :\nBonjour ${client.firstName} ! ${PLAN_TEAM[plan]}\n\nDis-moi ce dont tu as besoin (devis, post Google, prospects...) et j'agis. Tu peux aussi m'envoyer une photo de chantier, je te génère un devis en 30 secondes.\n\nPour commencer : envoie-moi "aide" pour voir tout ce qu'on peut faire.`;
+
+              await fetch(
+                `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    messaging_product: "whatsapp",
+                    to: phone.replace(/[^0-9]/g, ""),
+                    type: "text",
+                    text: { body: welcome },
+                  }),
+                }
+              );
+            }
+          } catch (waErr: any) {
+            console.error("[stripe.webhook] Premier message WhatsApp KO:", waErr.message);
+          }
+        }
+
+        break;
+      }
+
       // ─── Paiement réussi → activer le client ───
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
