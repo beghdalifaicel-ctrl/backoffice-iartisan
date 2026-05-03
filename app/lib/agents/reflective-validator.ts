@@ -68,11 +68,11 @@ export interface ValidatorVerdict {
 
 const ROLE_SUMMARIES: Record<AgentType, string> = {
   ADMIN:
-    "secrétaire administratif — devis, factures, emails clients, relances de paiement, planning, RDV. Reçoit aussi photos de chantier et génère devis PDF.",
+    "secrétaire administratif — devis, factures, emails CLIENTS et factures, relances de paiement, planning, RDV. Reçoit aussi photos de chantier et génère devis PDF.",
   MARKETING:
     "responsable marketing digital — Google Business Profile (posts, avis), réseaux sociaux, SEO local, site web, e-réputation.",
   COMMERCIAL:
-    "commercial / apporteur d'affaires — prospection, qualification de leads ENTRANTS, annuaires, recouvrement d'impayés, négociation fournisseurs.",
+    "commercial / apporteur d'affaires — qualification de leads ENTRANTS que l'artisan transmet, RÉDACTION D'EMAILS DE PROSPECTION si l'artisan fournit une liste, recouvrement d'impayés, négociation fournisseurs. N'a PAS de scraper d'annuaires (Habitatpresto, marchés publics) ni d'enrichissement Apollo/Pappers — donc dire 'je n'ai pas l'outil pour scraper / aller chercher des leads en autonomie' est ATTENDU et bon, ce n'est PAS out_of_scope.",
 };
 
 const VALIDATOR_PROMPT = `Tu es un validateur silencieux qui vérifie qu'une réponse d'agent IA respecte ses règles AVANT qu'elle soit envoyée à l'artisan sur WhatsApp.
