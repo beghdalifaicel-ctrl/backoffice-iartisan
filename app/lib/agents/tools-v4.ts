@@ -87,16 +87,41 @@ export const TOOLS: ToolDefinition[] = [
     argsHint:
       '{ "client_name": "Mme Dupont", "client_address"?: "...", "client_email"?: "...", "description": "ravalement 80m² enduit minéral" }',
     exec: async (args, ctx) => {
+      // Si l'artisan n'a pas donné de nom de client, on demande au lieu d'inventer
+      // un "Client {timestamp}" laid sur le PDF.
+      if (!args.client_name || !String(args.client_name).trim()) {
+        return {
+          ok: false,
+          summary: "nom client manquant — demande à l'artisan",
+          error: "missing_client_name",
+          data: {
+            clarification_needed:
+              "Pour qui je fais ce devis ? Donne-moi le nom du client (ex: Mme Dupont, M. Martin).",
+          },
+        };
+      }
+
       await ctx.emitStatus("Génération du devis…");
       try {
         const r = await handleDevisGeneration({
           clientId: ctx.clientId,
-          clientName: args.client_name || `Client ${Date.now()}`,
+          clientName: String(args.client_name).trim(),
           clientAddress: args.client_address,
           clientEmail: args.client_email,
           userPhone: ctx.normalizedPhone,
           userMessage: args.description || "",
         });
+        // Cas spécifique : extraction LLM a remonté une demande de clarification
+        // (description trop vague) — on transmet le message à Marie pour qu'elle
+        // pose la question, sans tenter de générer un PDF foireux.
+        if (!r.success && r.error === "needs_clarification") {
+          return {
+            ok: false,
+            summary: "demande trop vague — demande clarification à l'artisan",
+            error: "needs_clarification",
+            data: { clarification_needed: r.message },
+          };
+        }
         if (r.success && r.documentUrl) {
           return {
             ok: true,
