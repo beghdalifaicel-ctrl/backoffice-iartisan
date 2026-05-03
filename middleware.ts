@@ -7,6 +7,12 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const hostname = req.headers.get("host") || "";
 
+  // Skip middleware pour les fichiers statiques publics (images, fonts, manifest, etc.)
+  // Ces fichiers vivent dans /public/ et doivent être servis sans auth.
+  if (/\.(png|jpg|jpeg|svg|webp|gif|ico|woff2?|ttf|eot|otf|css|js|map|json|xml|txt|pdf)$/i.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // ─── Séparation domaines : app.iartisan.io = espace client/admin uniquement ───
   // Sur app.iartisan.io, les pages publiques (landing, CGV, mentions...) redirigent vers www
   const isAppDomain = hostname.startsWith("app.");
