@@ -232,7 +232,7 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
   let state = newPage(document, helvetica, helveticaBold);
   state = { ...state, y: 750 };
 
-  // Header: Company name
+  // Header: Company name (size 24 → top extends 24pt above baseline)
   state.page.drawText(data.company, {
     x: 50,
     y: state.y,
@@ -240,7 +240,7 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
   });
-  state.y -= 30;
+  state.y -= 32;
 
   // Company details
   const companyDetails = [
@@ -254,6 +254,8 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
     .join(' • ');
 
   // Use wrap-aware drawing so long company details don't overlap the DEVIS title.
+  // Padding generous (28pt) car le DEVIS title qui suit est en taille 32 et
+  // dessine son top 32pt au-dessus de son baseline → besoin de marge équivalente.
   const detailsHeight = drawWrappedText(state, companyDetails, {
     x: 50,
     maxWidth: 495,
@@ -262,7 +264,7 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
     color: rgb(0.4, 0.4, 0.4),
     lineHeight: 12,
   });
-  state.y -= detailsHeight + 8;
+  state.y -= detailsHeight + 28;
 
   // Devis title
   state.page.drawText('DEVIS', {
