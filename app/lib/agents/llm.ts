@@ -46,6 +46,14 @@ const TASK_MODEL_MAP: Record<string, ModelTier> = {
   'prospect.email': 'powerful',
   'report.weekly': 'powerful',
   'site.update': 'powerful',
+
+  // Le retry réflexif a besoin du modèle le plus fiable : on lui demande de
+  // respecter des contraintes contre-intuitives ("ne mentionne PAS l'outil
+  // dont tu as l'habitude de parler"). Mistral Medium tend à reprendre les
+  // patterns du contexte ; Large suit mieux les instructions négatives.
+  // Coût additionnel limité car le retry n'est déclenché qu'en cas de
+  // violation MAJEURE (~5-15% des tours d'après agent_retries).
+  'agent.retry': 'powerful',
 };
 
 interface LLMCallOptions {
