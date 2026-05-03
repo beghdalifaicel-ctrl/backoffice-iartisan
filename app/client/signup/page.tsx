@@ -17,7 +17,7 @@ const PLANS = [
     price: 49,
     setup: 0, // setup fee désactivé tant que webhook trial_will_end pas en place (TODO J21)
     trial: true,
-    desc: "Votre secrétaire IA",
+    desc: "On gère votre admin",
     reframe: "Le prix d'un plein de gasoil",
     result: "~10h/semaine de paperasse en moins",
     agents: [{ avatar: "/marie-avatar.png", name: "Marie", role: "Secrétaire IA" }],
@@ -35,7 +35,7 @@ const PLANS = [
     setup: 0,
     trial: true,
     popular: true,
-    desc: "Être trouvé par vos clients",
+    desc: "On vous rend visible",
     reframe: "Moins qu'un encart dans les Pages Jaunes",
     result: "Visible sur Google en 2 à 4 semaines",
     agents: [
@@ -56,7 +56,7 @@ const PLANS = [
     price: 179,
     setup: 0,
     trial: true,
-    desc: "On vous trouve de nouveaux clients",
+    desc: "On vous trouve des clients",
     reframe: "Rentabilisé dès le 1er nouveau client",
     result: "5 à 15 nouveaux contacts par mois",
     agents: [
