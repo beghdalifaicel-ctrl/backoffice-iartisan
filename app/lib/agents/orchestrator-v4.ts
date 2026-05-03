@@ -438,14 +438,23 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     const retryPrompt = [
       userPromptForAgent,
       "",
-      `Ta première réponse contenait des problèmes :`,
+      `⚠️ STOP — ta réponse précédente était :`,
+      `"""${replyBeforeReflexive.slice(0, 800)}"""`,
+      "",
+      `Elle contenait ces problèmes graves :`,
       ...validatorVerdict.violations
         .filter((v) => v.severity === "major")
         .map((v) => `- ${v.type} : ${v.explanation}`),
       "",
-      `Correction demandée : ${validatorVerdict.correction_hint}`,
+      `Règle de correction : ${validatorVerdict.correction_hint}`,
       "",
-      `Réécris ta réponse en respectant strictement ces corrections. Pas de Markdown, 2-3 phrases max, ne mentionne PAS d'autre agent si tu n'y es pas obligé, et N'ENGAGE PAS de date/délai si tu n'as pas appelé scheduleTask.`,
+      `RÉÉCRIS ta réponse en respectant STRICTEMENT ces règles :`,
+      `1. N'INVENTE AUCUNE donnée, action, ou outil que tu n'as pas réellement appelé. Si tu n'as pas l'outil, dis-le honnêtement.`,
+      `2. NE PROMETS aucune date/délai (demain, vendredi, dans 2h…) sauf si tu as appelé scheduleTask.`,
+      `3. NE PARLE PAS au nom d'un autre agent (Marie/Lucas/Samir).`,
+      `4. NE T'AUTO-FLAGELLE PAS ("désolée j'ai merdé"). Sois direct et utile.`,
+      `5. Texte brut WhatsApp, 2-3 phrases max, pas de Markdown.`,
+      `Mieux vaut dire "je n'ai pas l'outil pour ça, mais je peux faire X" que d'inventer un succès.`,
     ].join("\n");
 
     try {

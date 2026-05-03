@@ -446,18 +446,17 @@ export const TOOLS: ToolDefinition[] = [
       "Qualifie un prospect : enrichit les infos (entreprise, métier, ville, taille), score le fit avec l'artisan, propose la prochaine action.",
     argsHint:
       '{ "lead_name": "...", "lead_phone"?: "...", "lead_email"?: "...", "source"?: "habitatpresto|appel_entrant|..." }',
-    exec: async (args, ctx) => {
-      await ctx.emitStatus("J'enrichis le profil du prospect…");
-      // Stub d'enrichissement
+    exec: async (_args, _ctx) => {
+      // Tool désactivé tant que l'enrichissement Apollo/Pappers n'est pas
+      // branché. Sans intégration réelle, le LLM derrière invente un score
+      // ("score 8/10", "fit fort") pour combler le data vide. On retourne
+      // explicitement un échec pour forcer Samir à dire honnêtement qu'il
+      // n'a pas encore l'outil de qualification automatique.
       return {
-        ok: true,
-        summary: `Lead "${args.lead_name || "inconnu"}" qualifié (score à brancher)`,
-        data: {
-          lead_input: args,
-          score: null,
-          next_action: "Demander confirmation des coordonnées",
-          note: "Enrichissement Apollo/Pappers à brancher (stub).",
-        },
+        ok: false,
+        summary:
+          "Outil de qualification automatique non branché. Dis honnêtement à l'artisan : 'Je n'ai pas encore l'outil pour qualifier automatiquement. Donne-moi les coordonnées et le contexte du lead, je peux te proposer une réponse manuelle.'",
+        error: "tool_not_implemented",
       };
     },
   },
@@ -466,20 +465,17 @@ export const TOOLS: ToolDefinition[] = [
     name: "scrapeAnnuaires",
     agent: "COMMERCIAL",
     description:
-      "Cherche des chantiers/leads sur les annuaires (Habitatpresto, marchés publics) selon métier + zone + période.",
-    argsHint:
-      '{ "metier": "couverture", "zone": "Lyon", "period": "juin 2026", "limit"?: 5 }',
-    exec: async (args, ctx) => {
-      await ctx.emitStatus(`Je cherche ${args.metier || ctx.client.metier} sur ${args.zone || ctx.client.ville}…`);
-      // Stub : intégration scraper à brancher
+      "[NON DISPONIBLE — n'utilise PAS ce tool] Cherche des chantiers/leads sur les annuaires. L'intégration n'est PAS branchée. Si l'artisan demande de prospecter, dis-lui honnêtement que le scraper n'est pas encore disponible et propose une alternative concrète (rédiger un email à une liste qu'il fournit, qualifier un lead entrant, etc.).",
+    argsHint: '{ "metier": "...", "zone": "...", "period": "..." }',
+    exec: async (_args, _ctx) => {
+      // Tool désactivé : sans scraper réel, retourner ok:true + hits:[] fait
+      // halluciner le LLM ("scraper en maintenance", "0 lead pour l'instant").
+      // On retourne ok:false avec un message qui pousse à la vérité.
       return {
-        ok: true,
-        summary: `Recherche annuaires lancée (${args.zone || ctx.client.ville})`,
-        data: {
-          query: args,
-          hits: [],
-          note: "Intégration scraper Habitatpresto/marchés publics à brancher (stub).",
-        },
+        ok: false,
+        summary:
+          "Scraper d'annuaires NON branché. Dis honnêtement à l'artisan : 'Je n'ai pas encore l'outil pour scraper Habitatpresto ou les marchés publics directement. Pour l'instant je peux : (1) qualifier les leads que tu m'envoies, (2) rédiger des emails de prospection si tu me donnes une liste, (3) suivre tes impayés. Lequel t'aiderait maintenant ?'",
+        error: "tool_not_implemented",
       };
     },
   },

@@ -42,8 +42,9 @@ const ROLE_PERIMETERS: Record<AgentType, string> = {
   MARKETING:
     "Tu gères : Google Business Profile (posts, avis), réseaux sociaux, SEO local, mises à jour du site web, e-réputation.",
   COMMERCIAL:
-    "Tu gères : prospection, qualification de leads ENTRANTS, annuaires (Habitatpresto, marchés publics), recouvrement d'impayés, négociation fournisseurs.\n\n" +
-    "⚠️ RÈGLE D'HUMILITÉ (priorité absolue) : tu ne traites PAS les devis, factures, emails, planning de l'artisan — c'est Marie. Tu ne traites PAS les fiches Google, posts ou avis — c'est Lucas. Si on t'a appelé par erreur sur un sujet qui n'est pas dans TON périmètre (ex: l'artisan parlait d'un devis avec Marie et a juste répondu 'excel' ou 'word' ou 'oui'), tu dis HONNÊTEMENT en une phrase courte : 'Ça c'est plutôt pour Marie' (ou Lucas selon le sujet) et c'est tout. Tu n'INVENTES JAMAIS une activité de prospection, tu ne PROMETS PAS de 'leads qualifiés', de 'scraper en maintenance', de résultats 'demain matin', etc., si l'artisan ne t'a PAS explicitement demandé de la prospection. Mieux vaut passer la main qu'inventer une mission.",
+    "Tu gères : qualification de leads ENTRANTS (que l'artisan te transmet), aide à la rédaction d'emails de prospection si l'artisan te donne une liste, suivi/recouvrement d'impayés, négociation fournisseurs.\n\n" +
+    "⚠️ OUTILS QUE TU N'AS PAS (priorité absolue) : tu N'AS PAS de scraper d'annuaires (Habitatpresto, marchés publics, Pages Jaunes ne sont PAS branchés), tu N'AS PAS d'enrichissement automatique de leads (Apollo/Pappers pas branchés), tu NE PEUX PAS aller chercher de nouveaux clients en autonomie. Si l'artisan te demande 'trouve-moi des nouveaux clients', tu dis HONNÊTEMENT en une phrase : 'Je n'ai pas encore l'outil pour scraper les annuaires en autonomie. Pour l'instant je peux : (1) qualifier les leads que tu m'envoies, (2) rédiger des emails à une liste que tu me donnes, (3) suivre tes impayés. Lequel t'aide là maintenant ?'\n\n" +
+    "⚠️ RÈGLE D'HUMILITÉ : tu ne traites PAS les devis, factures, emails, planning de l'artisan — c'est Marie. Tu ne traites PAS les fiches Google, posts ou avis — c'est Lucas. Si on t'a appelé par erreur sur un sujet qui n'est pas dans TON périmètre (ex: l'artisan parlait d'un devis avec Marie et a juste répondu 'excel' ou 'word' ou 'oui'), tu dis HONNÊTEMENT en une phrase courte : 'Ça c'est plutôt pour Marie' (ou Lucas selon le sujet) et c'est tout. Tu n'INVENTES JAMAIS de leads, de chiffres, de scraping en cours, de 'scraper en maintenance', d'appels d'offres trouvés. Mieux vaut dire 'je n'ai pas l'outil' qu'inventer.",
 };
 
 export function buildAgentSystemPrompt(ctx: PromptContext): string {
@@ -158,14 +159,19 @@ export function buildToolResultFollowup(
   toolResults: Array<{ name: string; ok: boolean; summary: string; data?: any; error?: string }>
 ): string {
   const blocks = toolResults.map((r) => {
-    const head = r.ok ? `[OK] ${r.name} — ${r.summary}` : `[ERREUR] ${r.name} — ${r.error || r.summary}`;
-    const body = r.data ? `\n  data: ${JSON.stringify(r.data).slice(0, 800)}` : "";
-    return head + body;
+    if (r.ok) {
+      const body = r.data ? `\n  data: ${JSON.stringify(r.data).slice(0, 800)}` : "";
+      return `[OK] ${r.name} — ${r.summary}${body}`;
+    }
+    // En cas d'erreur, on montre le summary EN PRIORITÉ (souvent un message
+    // d'instruction comme "tool non branché, dis à l'artisan : ...") puis
+    // le code d'erreur technique entre parenthèses.
+    return `[ERREUR] ${r.name} — ${r.summary}${r.error ? ` (code: ${r.error})` : ""}`;
   });
   return [
     "Résultats des outils que tu viens d'appeler :",
     blocks.join("\n"),
     "",
-    "Réécris ta réponse à l'artisan en tenant compte de ces résultats. Confirme ce qui a marché, dis ce qui n'a pas marché honnêtement. Garde 2-3 phrases max, pas de Markdown.",
+    "Réécris ta réponse à l'artisan en tenant compte de ces résultats. Si un outil a renvoyé une instruction de transparence (\"dis honnêtement à l'artisan que...\"), suis-la TEXTUELLEMENT — n'invente JAMAIS un succès quand le tool a échoué. Garde 2-3 phrases max, pas de Markdown.",
   ].join("\n");
 }
