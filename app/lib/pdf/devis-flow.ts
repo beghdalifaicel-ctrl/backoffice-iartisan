@@ -109,6 +109,12 @@ CAS 2 — La demande est TROP VAGUE pour produire un devis fiable (juste "fais u
 - Unités : u (unité), m² (m carré), ml (mètre linéaire), h (heure), forfait.
 - Arrondir aux centimes.
 
+## ⚠️ Règle ÉPELLATIONS de noms (priorité absolue sur l'orthographe)
+Si l'artisan ÉPELLE un nom dans son message — c'est-à-dire écrit/dit une suite de lettres séparées par tirets, virgules, points ou espaces (ex: "B-E-G-H-D-A-L-I", "B E G H D A L I", "B,E,G,H,D,A,L,I") — tu DOIS utiliser EXACTEMENT cette suite de lettres comme orthographe officielle du nom du client. Ignore toute version "inline" du nom qui apparaît à côté (Whisper et les LLM peuvent omettre des lettres dans la version inline).
+
+Exemple : "fais un devis pour Mme Begdali, B-E-G-H-D-A-L-I, 100m² carrelage"
+→ Le nom officiel est "Mme Beghdali" (avec H). La version "Begdali" sans H est probablement une erreur de transcription, **utilise l'épellation littérale**.
+
 ## Règles strictes (CAS 2)
 - Tu utilises CAS 2 dès que :
   - L'artisan dit juste "fais un devis" sans plus
@@ -229,6 +235,9 @@ Si une description contient un chiffre lié à la quantité (ex: "Fourniture et 
 - "ajoute une ligne X 200€" → ajoute une ligne en bas avec quantity=1, unitPriceHT=200, unite="forfait" (ou autre unité si déductible).
 - "retire/supprime la ligne X" → retire la ligne. Si X est une matière principale, propose dans la description que les lignes liées soient aussi retirées (mais retire UNIQUEMENT ce qui est demandé explicitement, pas plus — la propagation s'applique aux QUANTITÉS, pas aux suppressions).
 
+## ⚠️ Épellations de noms
+Si l'artisan épelle un nom dans sa demande (ex: "B-E-G-H-D-A-L-I"), utilise EXACTEMENT cette orthographe pour toute mention du client dans les modifications. Ignore les versions inline mal-écrites (problèmes de transcription Whisper fréquents).
+
 ## Process
 
 Avant d'écrire le JSON, raisonne :
@@ -236,6 +245,7 @@ Avant d'écrire le JSON, raisonne :
 2. Y a-t-il une matière principale impactée ?
 3. Quelles autres lignes doivent suivre (propagation) ?
 4. Y a-t-il des chiffres dans les descriptions à mettre à jour ?
+5. Y a-t-il une épellation de nom à respecter littéralement ?
 Puis écris le JSON.`;
 
   try {

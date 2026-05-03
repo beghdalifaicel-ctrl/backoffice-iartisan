@@ -101,7 +101,7 @@ export const TOOLS: ToolDefinition[] = [
         };
       }
 
-      await ctx.emitStatus("Génération du devis…");
+      await ctx.emitStatus("Je te prépare le devis…");
       try {
         const r = await handleDevisGeneration({
           clientId: ctx.clientId,
@@ -157,7 +157,7 @@ export const TOOLS: ToolDefinition[] = [
     argsHint:
       '{ "devis_number"?: "DEV-2026-0042", "modifications": "passe la quantité de carrelage à 30m² et ajoute une ligne pour le débarras 200€" }',
     exec: async (args, ctx) => {
-      await ctx.emitStatus("Modification du devis…");
+      await ctx.emitStatus("Je modifie le devis…");
       try {
         const r = await editDevisGeneration({
           clientId: ctx.clientId,
@@ -231,7 +231,7 @@ export const TOOLS: ToolDefinition[] = [
     argsHint:
       '{ "client_email": "x@y.fr", "client_name": "Dupont", "invoice_number": "F-2026-018", "amount_eur": 850, "tone": "polie|ferme" }',
     exec: async (args, ctx) => {
-      await ctx.emitStatus(`Rédaction de la relance pour ${args.client_name || "le client"}…`);
+      await ctx.emitStatus(`Je rédige la relance pour ${args.client_name || "le client"}…`);
       // Intégration avec Brevo / SMTP côté backoffice. Stub safe par défaut :
       // on enregistre l'intention en agent_tasks pour traitement par le worker.
       const { data, error } = await supabase
@@ -262,7 +262,7 @@ export const TOOLS: ToolDefinition[] = [
       "Résume les emails non lus de la boîte de l'artisan (via intégration Gmail/IMAP côté serveur). Renvoie une synthèse en 5 lignes max.",
     argsHint: '{ "since_hours": 24 }',
     exec: async (args, ctx) => {
-      await ctx.emitStatus("Lecture de ta boîte mail…");
+      await ctx.emitStatus("Je lis ta boîte mail…");
       // Stub : à brancher sur l'intégration réelle. On retourne un placeholder
       // structuré pour que l'agent compose une réponse cohérente.
       return {
@@ -396,7 +396,7 @@ export const TOOLS: ToolDefinition[] = [
     argsHint:
       '{ "metier": "couverture", "zone": "Lyon", "period": "juin 2026", "limit"?: 5 }',
     exec: async (args, ctx) => {
-      await ctx.emitStatus(`Recherche ${args.metier || ctx.client.metier} sur ${args.zone || ctx.client.ville}…`);
+      await ctx.emitStatus(`Je cherche ${args.metier || ctx.client.metier} sur ${args.zone || ctx.client.ville}…`);
       // Stub : intégration scraper à brancher
       return {
         ok: true,
