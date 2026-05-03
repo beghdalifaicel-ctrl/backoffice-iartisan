@@ -29,6 +29,7 @@ import {
   type ToolResult,
 } from "@/lib/agents/tools-v4";
 import { buildAgentSystemPrompt, buildToolResultFollowup } from "@/lib/agents/prompts-v4";
+import { detectAndLogAlerts } from "@/lib/agents/alerts";
 
 const supabase = createClient(
   process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
@@ -390,6 +391,27 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       delegated_to: pendingDelegateTo,
     },
   });
+
+  // Fire-and-forget : détection des signaux faibles (frustration, hallucination,
+  // churn signal, etc.) → INSERT en DB + email Faicel si severity ≥ med.
+  // Ne ralentit pas la réponse à l'artisan : le tour est déjà fini quand on
+  // lance l'analyse. Toute erreur est logguée mais ne casse rien.
+  const toolFailureSummary = toolResults
+    .filter((r) => !r.ok)
+    .map((r) => `${r.summary}${r.error ? ` (${r.error})` : ""}`)
+    .join("; ")
+    .slice(0, 300);
+
+  detectAndLogAlerts({
+    clientId: client.id,
+    phone: normalizedPhone,
+    clientCompany: client.company,
+    agentSignedAs: target,
+    userMessage: text,
+    agentReply: finalReply,
+    contextSnippet: historySnippet || undefined,
+    toolFailureSummary: toolFailureSummary || undefined,
+  }).catch((err) => console.error("[orchestrator] alert detection error:", err));
 
   return {
     routedTo: target,
