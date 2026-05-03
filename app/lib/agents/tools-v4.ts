@@ -19,7 +19,11 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { AgentType } from "@/lib/agents/types";
-import { handleDevisGeneration, editDevisGeneration } from "@/lib/pdf/devis-flow";
+import {
+  handleDevisGeneration,
+  editDevisGeneration,
+  exportDevisAsFile,
+} from "@/lib/pdf/devis-flow";
 
 const supabase = createClient(
   process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
@@ -143,6 +147,76 @@ export const TOOLS: ToolDefinition[] = [
         return { ok: false, summary: "génération devis échouée", error: r.error || "unknown" };
       } catch (e: any) {
         return { ok: false, summary: "erreur devis", error: e?.message || String(e) };
+      }
+    },
+  },
+
+  {
+    name: "exportDevisToWord",
+    agent: "ADMIN",
+    description:
+      "Exporte un devis EXISTANT au format Word (.docx) modifiable, à utiliser quand l'artisan demande de finaliser le devis dans son outil ou personnaliser la mise en page (ex: 'envoie-moi en Word', 'tu peux me filer un docx ?', 'format modifiable Word'). " +
+      "Si l'artisan mentionne un numéro précis (DEV-AAAA-XXXX), passer dans devis_number ; sinon laisser vide pour exporter le DERNIER devis envoyé. PJ envoyée automatiquement.",
+    argsHint: '{ "devis_number"?: "DEV-2026-0042" }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus("Je te prépare le devis en Word…");
+      try {
+        const r = await exportDevisAsFile({
+          clientId: ctx.clientId,
+          userPhone: ctx.normalizedPhone,
+          devisNumber: args.devis_number,
+          format: "docx",
+        });
+        if (r.success && r.documentUrl) {
+          return {
+            ok: true,
+            summary: `Devis ${r.devisNumber} exporté en Word`,
+            attachment: {
+              url: r.documentUrl,
+              filename: r.filename || `${r.devisNumber}.docx`,
+              caption: `Devis ${r.devisNumber} — Word`,
+            },
+            data: { devis_number: r.devisNumber, format: "docx" },
+          };
+        }
+        return { ok: false, summary: "export Word échoué", error: r.message || r.error || "unknown" };
+      } catch (e: any) {
+        return { ok: false, summary: "erreur export Word", error: e?.message || String(e) };
+      }
+    },
+  },
+
+  {
+    name: "exportDevisToExcel",
+    agent: "ADMIN",
+    description:
+      "Exporte un devis EXISTANT au format Excel (.xlsx) modifiable, à utiliser quand l'artisan veut bricoler les prix dans un tableur ou réutiliser les chiffres dans son outil (ex: 'envoie-moi en Excel', 'tu peux me filer un xlsx ?', 'tableur', 'format modifiable Excel'). " +
+      "Si l'artisan mentionne un numéro précis (DEV-AAAA-XXXX), passer dans devis_number ; sinon laisser vide pour exporter le DERNIER devis envoyé. PJ envoyée automatiquement.",
+    argsHint: '{ "devis_number"?: "DEV-2026-0042" }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus("Je te prépare le devis en Excel…");
+      try {
+        const r = await exportDevisAsFile({
+          clientId: ctx.clientId,
+          userPhone: ctx.normalizedPhone,
+          devisNumber: args.devis_number,
+          format: "xlsx",
+        });
+        if (r.success && r.documentUrl) {
+          return {
+            ok: true,
+            summary: `Devis ${r.devisNumber} exporté en Excel`,
+            attachment: {
+              url: r.documentUrl,
+              filename: r.filename || `${r.devisNumber}.xlsx`,
+              caption: `Devis ${r.devisNumber} — Excel`,
+            },
+            data: { devis_number: r.devisNumber, format: "xlsx" },
+          };
+        }
+        return { ok: false, summary: "export Excel échoué", error: r.message || r.error || "unknown" };
+      } catch (e: any) {
+        return { ok: false, summary: "erreur export Excel", error: e?.message || String(e) };
       }
     },
   },

@@ -16,7 +16,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { callLLM } from '@/lib/agents/llm';
 import { generateDevisPDF, DevisData, DevisItem } from './devis';
-import { uploadDevisPDF } from './storage';
+import { generateDevisDOCX } from './devis-docx';
+import { generateDevisXLSX } from './devis-xlsx';
+import { uploadDevisPDF, uploadDevisFile } from './storage';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -633,6 +635,139 @@ export async function editDevisGeneration(
       success: false,
       error: err.message,
       message: `Erreur lors de la modification du devis : ${err.message}`,
+    };
+  }
+}
+
+// ─── EXPORT (Word / Excel) ─────────────────────────────────────────
+//
+// Re-utilise la logique de lookup d'editDevisGeneration : retrouve un devis
+// par devis_number explicite, OU le dernier envoyé sur le user_phone.
+// Reconstruit DevisData à partir du snapshot stocké en base, et appelle le
+// générateur correspondant.
+
+export type ExportFormat = 'docx' | 'xlsx';
+
+export interface DevisExportRequest {
+  clientId: string;
+  userPhone: string;
+  devisNumber?: string;
+  format: ExportFormat;
+}
+
+export interface DevisExportResult {
+  success: boolean;
+  documentUrl?: string;
+  devisNumber?: string;
+  filename?: string;
+  error?: string;
+  message: string;
+}
+
+export async function exportDevisAsFile(
+  request: DevisExportRequest
+): Promise<DevisExportResult> {
+  try {
+    // 1. Trouve le devis cible (même logique qu'editDevisGeneration)
+    let target: AgentDevisRow | null = null;
+    if (request.devisNumber) {
+      const { data } = await supabase
+        .from('agent_devis')
+        .select('*')
+        .eq('client_id', request.clientId)
+        .eq('devis_number', request.devisNumber)
+        .order('version', { ascending: false })
+        .limit(1);
+      target = data?.[0] || null;
+    } else {
+      const { data } = await supabase
+        .from('agent_devis')
+        .select('*')
+        .eq('client_id', request.clientId)
+        .eq('user_phone', request.userPhone)
+        .in('status', ['sent', 'accepted'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      target = data?.[0] || null;
+    }
+
+    if (!target) {
+      return {
+        success: false,
+        error: 'devis_not_found',
+        message: request.devisNumber
+          ? `Je ne trouve pas le devis ${request.devisNumber}.`
+          : "Je ne trouve pas de devis récent à exporter. Demande-m'en un d'abord ou précise le numéro (DEV-AAAA-XXXX).",
+      };
+    }
+
+    // 2. Récupère le contexte entreprise pour le PDF
+    const { data: client } = await supabase
+      .from('clients')
+      .select('company, metier, ville, siret, phone, email, adresse')
+      .eq('id', request.clientId)
+      .single();
+
+    if (!client) {
+      return {
+        success: false,
+        error: 'client_not_found',
+        message: "Impossible de récupérer les infos de votre entreprise.",
+      };
+    }
+
+    // 3. Reconstruit DevisData
+    const devisData: DevisData = {
+      company: client.company,
+      metier: client.metier,
+      siret: client.siret,
+      address: client.adresse,
+      phone: client.phone,
+      email: client.email,
+      devisNumber: target.devis_number,
+      date: new Date(target.created_at),
+      validityDays: 30,
+      clientName: target.client_name,
+      clientAddress: target.client_address || undefined,
+      clientEmail: target.client_email || undefined,
+      items: target.items,
+      tvaRate: target.tva_rate,
+      conditions: target.conditions || undefined,
+    };
+
+    // 4. Génère selon le format
+    let bytes: Uint8Array;
+    let filename: string;
+    let mime:
+      | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    if (request.format === 'docx') {
+      bytes = await generateDevisDOCX(devisData);
+      filename = `${target.devis_number}${target.version > 1 ? `-v${target.version}` : ''}.docx`;
+      mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    } else {
+      bytes = await generateDevisXLSX(devisData);
+      filename = `${target.devis_number}${target.version > 1 ? `-v${target.version}` : ''}.xlsx`;
+      mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+
+    // 5. Upload + retourne URL
+    const url = await uploadDevisFile(bytes, filename, mime);
+
+    return {
+      success: true,
+      documentUrl: url,
+      devisNumber: target.devis_number,
+      filename,
+      message: `Devis ${target.devis_number} exporté en ${request.format === 'docx' ? 'Word' : 'Excel'}.`,
+    };
+  } catch (err: any) {
+    console.error('[Devis export] Error:', err);
+    return {
+      success: false,
+      error: err?.message || String(err),
+      message: `Erreur lors de l'export : ${err?.message || 'inconnue'}`,
     };
   }
 }
