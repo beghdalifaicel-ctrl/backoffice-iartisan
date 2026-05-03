@@ -15,9 +15,17 @@ const supabase = createClient(
 const BUCKET_NAME = 'devis-pdfs';
 const BUCKET_TEMP_RETENTION = 86400 * 3; // 3 days in seconds
 
+// MIME types autorisés dans le bucket (PDF + formats modifiables Word/Excel).
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+];
+
 /**
- * Ensures the devis-pdfs bucket exists and is configured for public access
- * Call this once at app startup or on first use
+ * Ensures the devis-pdfs bucket exists and is configured for public access.
+ * Le bucket accepte PDF + DOCX + XLSX (formats modifiables que Marie peut envoyer
+ * sur demande pour que l'artisan finalise dans son outil).
  */
 export async function ensureDevisBucket(): Promise<void> {
   try {
@@ -31,7 +39,7 @@ export async function ensureDevisBucket(): Promise<void> {
     await supabase.storage.createBucket(BUCKET_NAME, {
       public: true,
       fileSizeLimit: 10485760, // 10 MB
-      allowedMimeTypes: ['application/pdf'],
+      allowedMimeTypes: ALLOWED_MIME_TYPES,
     });
 
     console.log(`[Storage] Created bucket: ${BUCKET_NAME}`);
@@ -44,47 +52,53 @@ export async function ensureDevisBucket(): Promise<void> {
 }
 
 /**
- * Upload a PDF to Supabase Storage
- * Returns a public URL for the document
+ * Upload arbitrary devis bytes (PDF / DOCX / XLSX) to Supabase Storage.
  *
- * @param pdfBytes - PDF data as Uint8Array
- * @param filename - Filename (e.g., "DEV-2026-0001.pdf")
+ * @param bytes - File bytes as Uint8Array
+ * @param filename - Filename (e.g., "DEV-2026-0001.pdf" or ".docx" or ".xlsx")
+ * @param contentType - MIME type. Defaults to PDF.
  * @returns Public URL of the uploaded file
  */
-export async function uploadDevisPDF(
-  pdfBytes: Uint8Array,
-  filename: string
+export async function uploadDevisFile(
+  bytes: Uint8Array,
+  filename: string,
+  contentType:
+    | 'application/pdf'
+    | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' = 'application/pdf'
 ): Promise<string> {
   try {
-    // Ensure bucket exists
     await ensureDevisBucket();
 
-    // Generate unique path to avoid collisions
     const timestamp = Date.now();
     const filepath = `temp/${timestamp}_${filename}`;
 
-    // Upload
-    const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(filepath, pdfBytes, {
-        contentType: 'application/pdf',
-        cacheControl: '3600', // 1 hour cache
-      });
+    const { error } = await supabase.storage.from(BUCKET_NAME).upload(filepath, bytes, {
+      contentType,
+      cacheControl: '3600',
+    });
 
     if (error) {
       throw new Error(`Upload failed: ${error.message}`);
     }
 
-    // Get public URL
-    const { data: publicUrl } = supabase.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(filepath);
-
+    const { data: publicUrl } = supabase.storage.from(BUCKET_NAME).getPublicUrl(filepath);
     return publicUrl.publicUrl;
   } catch (err: any) {
-    console.error('[Storage] PDF upload error:', err);
+    console.error('[Storage] Upload error:', err);
     throw err;
   }
+}
+
+/**
+ * Upload a PDF to Supabase Storage. Backward-compatible wrapper around
+ * uploadDevisFile() — keep using it for PDF flows.
+ */
+export async function uploadDevisPDF(
+  pdfBytes: Uint8Array,
+  filename: string
+): Promise<string> {
+  return uploadDevisFile(pdfBytes, filename, 'application/pdf');
 }
 
 /**
