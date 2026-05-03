@@ -168,6 +168,22 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   const isTeam = teamMembers.length > 1;
 
   // 3) Routing
+  // On extrait le dernier agent qui a parlé (assistant message le plus récent)
+  // pour que le router puisse appliquer son short-circuit de continuité.
+  // history est trié ascendant (plus ancien → plus récent), on cherche en
+  // partant de la fin (sans inclure le user message qu'on vient de saver).
+  let lastAssistantAgent: AgentType | undefined;
+  for (let i = history.length - 2; i >= 0; i--) {
+    const m = history[i];
+    if (m.role === "assistant" && m.agent_signed_as) {
+      const sig = m.agent_signed_as as AgentType;
+      if (["ADMIN", "MARKETING", "COMMERCIAL"].includes(sig)) {
+        lastAssistantAgent = sig;
+        break;
+      }
+    }
+  }
+
   let decision: RouterDecision;
   if (input.forceAgent && teamAgents.includes(input.forceAgent)) {
     decision = {
@@ -183,6 +199,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       text,
       availableAgents: teamAgents,
       recentHistorySnippet: historySnippet,
+      lastAssistantAgent,
     });
   }
 
