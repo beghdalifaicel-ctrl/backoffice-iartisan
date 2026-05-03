@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "message (string) required" }, { status: 400 });
   }
 
-  // Choisir le client : explicite > 1er en DB
+  // Choisir le client : explicite > 1er ACTIVE/TRIAL trouvé
   let client: any;
   if (explicitClientId) {
     const { data, error } = await supabase
@@ -68,20 +68,45 @@ export async function POST(req: NextRequest) {
       .eq("id", explicitClientId)
       .single();
     if (error || !data) {
-      return NextResponse.json({ error: `client ${explicitClientId} not found` }, { status: 404 });
+      return NextResponse.json(
+        { error: `client ${explicitClientId} not found`, details: error?.message },
+        { status: 404 }
+      );
     }
     client = data;
   } else {
+    // Pas de tri par created_at car Prisma camelCase peut casser. On prend
+    // n'importe quel client ACTIVE / TRIAL.
     const { data, error } = await supabase
       .from("clients")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-    if (error || !data) {
-      return NextResponse.json({ error: "no client found in DB" }, { status: 500 });
+      .in("status", ["ACTIVE", "TRIAL"])
+      .limit(1);
+    if (error) {
+      return NextResponse.json(
+        { error: "DB query failed", details: error.message, hint: "Vérifie que la table 'clients' existe et est lisible avec service_role." },
+        { status: 500 }
+      );
     }
-    client = data;
+    if (!data || data.length === 0) {
+      // Fallback : n'importe quel client, peu importe le status
+      const { data: anyClient, error: anyErr } = await supabase
+        .from("clients")
+        .select("*")
+        .limit(1);
+      if (anyErr || !anyClient || anyClient.length === 0) {
+        return NextResponse.json(
+          {
+            error: "no client found in DB",
+            hint: "Crée d'abord un client via l'admin (ou passe client_id dans le body).",
+          },
+          { status: 500 }
+        );
+      }
+      client = anyClient[0];
+    } else {
+      client = data[0];
+    }
   }
 
   // Snapshots avant le tour
