@@ -20,7 +20,7 @@ const PLANS = [
     desc: "Votre secrétaire IA",
     reframe: "Le prix d'un plein de gasoil",
     result: "~10h/semaine de paperasse en moins",
-    agents: [{ emoji: "👩", name: "Marie", role: "Secrétaire IA" }],
+    agents: [{ avatar: "/marie-avatar.png", name: "Marie", role: "Secrétaire IA" }],
     features: [
       "Devis et factures automatiques",
       "Relance clients par email",
@@ -39,8 +39,8 @@ const PLANS = [
     reframe: "Moins qu'un encart dans les Pages Jaunes",
     result: "Visible sur Google en 2 à 4 semaines",
     agents: [
-      { emoji: "👩", name: "Marie", role: "Secrétaire IA" },
-      { emoji: "👨", name: "Lucas", role: "Marketing IA" },
+      { avatar: "/marie-avatar.png", name: "Marie", role: "Secrétaire IA" },
+      { avatar: "/lucas-avatar.png", name: "Lucas", role: "Marketing IA" },
     ],
     features: [
       "Tout de Essentiel +",
@@ -60,9 +60,9 @@ const PLANS = [
     reframe: "Rentabilisé dès le 1er nouveau client",
     result: "5 à 15 nouveaux contacts par mois",
     agents: [
-      { emoji: "👩", name: "Marie", role: "Secrétaire IA" },
-      { emoji: "👨", name: "Lucas", role: "Marketing IA" },
-      { emoji: "🧔", name: "Samir", role: "Commercial IA" },
+      { avatar: "/marie-avatar.png", name: "Marie", role: "Secrétaire IA" },
+      { avatar: "/lucas-avatar.png", name: "Lucas", role: "Marketing IA" },
+      { avatar: "/samir-avatar.png", name: "Samir", role: "Commercial IA" },
     ],
     features: [
       "Tout de Pro +",
@@ -221,11 +221,30 @@ function SignupContent() {
                       </div>
                     </div>
 
-                    {/* Agents IA inclus */}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {/* Agents IA inclus — avatars + pills */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10, alignItems: "center" }}>
+                      <div style={{ display: "flex" }}>
+                        {plan.agents.map((a, i) => (
+                          <img
+                            key={i}
+                            src={a.avatar}
+                            alt={a.name}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                              border: `2px solid ${C.surface}`,
+                              marginLeft: i === 0 ? 0 : -8,
+                              zIndex: plan.agents.length - i,
+                              position: "relative",
+                              boxShadow: `0 0 0 1px ${C.border}`,
+                            }}
+                          />
+                        ))}
+                      </div>
                       {plan.agents.map((a, i) => (
                         <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 20, padding: "4px 10px", fontSize: 12 }}>
-                          <span style={{ fontSize: 14 }}>{a.emoji}</span>
                           <span style={{ fontWeight: 700, color: C.dark }}>{a.name}</span>
                           <span style={{ color: C.muted }}>· {a.role}</span>
                         </div>
@@ -310,12 +329,29 @@ function SignupContent() {
                 <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 2 }}>
                   <Clock size={11} style={{ verticalAlign: "middle", marginRight: 4 }} />14 jours gratuits — 0€ aujourd'hui
                 </div>
-                <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-                  {selectedPlanData.agents.map((a, i) => (
-                    <span key={i} style={{ fontSize: 11, color: C.muted }}>
-                      {a.emoji} {a.name}{i < selectedPlanData.agents.length - 1 ? " ·" : ""}
-                    </span>
-                  ))}
+                <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+                  <div style={{ display: "flex" }}>
+                    {selectedPlanData.agents.map((a, i) => (
+                      <img
+                        key={i}
+                        src={a.avatar}
+                        alt={a.name}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          border: `2px solid ${C.surface}`,
+                          marginLeft: i === 0 ? 0 : -6,
+                          zIndex: selectedPlanData.agents.length - i,
+                          position: "relative",
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 11, color: C.muted }}>
+                    {selectedPlanData.agents.map(a => a.name).join(" + ")}
+                  </span>
                 </div>
               </div>
               <button
