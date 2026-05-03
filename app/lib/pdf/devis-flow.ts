@@ -158,15 +158,55 @@ Tu dois renvoyer le nouveau devis COMPLET au format JSON strict (UNIQUEMENT le J
   "tva_rate": 10
 }
 
-Règles strictes :
-- Conserve TOUTES les lignes inchangées telles quelles (mêmes descriptions, mêmes prix, mêmes quantités).
-- Modifie UNIQUEMENT ce que l'artisan demande explicitement.
-- Si l'artisan demande "ajoute une ligne X", ajoute la ligne en bas avec un prix réaliste pour ${clientContext.metier}.
-- Si l'artisan demande "retire/supprime la ligne X", retire la ligne correspondante.
-- Si l'artisan demande de changer la TVA (ex: "passe en TVA 20%"), modifie tva_rate.
-- Si l'artisan modifie les conditions de paiement, modifie conditions.
-- Pas d'invention de lignes hors demande explicite.
-- Format unités : u, m², ml, m³, h, forfait, kg, l.`;
+## Règles de modification
+
+1. Conserve TOUTES les lignes que l'artisan ne touche pas explicitement.
+2. Modifie ce que l'artisan demande en langage naturel (quantité, prix, désignation, ajout/retrait, TVA, conditions).
+3. Format unités : u, m², ml, m³, h, forfait, kg, l.
+
+## ⚠️ RÈGLE CRITIQUE — COHÉRENCE MÉTIER (la plus importante)
+
+Quand l'artisan change la quantité d'une MATIÈRE PRINCIPALE (carrelage, parquet, peinture, placo, isolant, faïence, dalles, etc.), tu DOIS PROPAGER ce changement à TOUTES les lignes d'opérations qui dépendent de cette matière :
+
+Exemples de propagation OBLIGATOIRE :
+- "carrelage" → propage à : pose de carrelage, ragréage avant pose, jointoiement, finition, nettoyage après pose, primaire d'accroche, plinthes
+- "parquet" → propage à : pose de parquet, dépose ancien revêtement, plinthes, ponçage, vitrification
+- "peinture" → propage à : préparation murs, sous-couche, ponçage, finition
+- "placo" → propage à : ossature, vissage, bandes, enduit, ponçage, peinture si liée
+- "faïence" → propage à : pose, jointoiement, dépose ancien
+
+Règle : si une ligne A est en surface (m²) et une ligne B également en surface (m²), et que B est une opération qui s'applique sur la même surface que A, alors B doit suivre la quantité de A.
+
+Exemple concret :
+Si l'artisan dit "change la quantité de carrelage à 30m²" et que le devis contient :
+- Pose de carrelage 25m²
+- Ragréage 25m²
+- Jointoiement 25m²
+- Dépose ancien revêtement 1 forfait
+
+Alors tu DOIS produire :
+- Pose de carrelage 30m² ✓
+- Ragréage 30m² ✓ (suit la surface)
+- Jointoiement 30m² ✓ (suit la surface)
+- Dépose ancien revêtement 1 forfait (inchangé : forfait, pas surface)
+
+## Cohérence textuelle
+
+Si une description contient un chiffre lié à la quantité (ex: "Fourniture et pose carrelage (25m²)"), tu DOIS mettre à jour ce chiffre dans la description quand la quantité change. La description doit toujours refléter la nouvelle quantité.
+
+## Ajouts / retraits
+
+- "ajoute une ligne X 200€" → ajoute une ligne en bas avec quantity=1, unitPriceHT=200, unite="forfait" (ou autre unité si déductible).
+- "retire/supprime la ligne X" → retire la ligne. Si X est une matière principale, propose dans la description que les lignes liées soient aussi retirées (mais retire UNIQUEMENT ce qui est demandé explicitement, pas plus — la propagation s'applique aux QUANTITÉS, pas aux suppressions).
+
+## Process
+
+Avant d'écrire le JSON, raisonne :
+1. Quelle modification est demandée ?
+2. Y a-t-il une matière principale impactée ?
+3. Quelles autres lignes doivent suivre (propagation) ?
+4. Y a-t-il des chiffres dans les descriptions à mettre à jour ?
+Puis écris le JSON.`;
 
   try {
     const response = await callLLM({
