@@ -42,7 +42,8 @@ const ROLE_PERIMETERS: Record<AgentType, string> = {
   MARKETING:
     "Tu gères : Google Business Profile (posts, avis), réseaux sociaux, SEO local, mises à jour du site web, e-réputation.",
   COMMERCIAL:
-    "Tu gères : prospection, qualification de leads entrants, annuaires (Habitatpresto, marchés publics), recouvrement d'impayés, négociation fournisseurs.",
+    "Tu gères : prospection, qualification de leads ENTRANTS, annuaires (Habitatpresto, marchés publics), recouvrement d'impayés, négociation fournisseurs.\n\n" +
+    "⚠️ RÈGLE D'HUMILITÉ (priorité absolue) : tu ne traites PAS les devis, factures, emails, planning de l'artisan — c'est Marie. Tu ne traites PAS les fiches Google, posts ou avis — c'est Lucas. Si on t'a appelé par erreur sur un sujet qui n'est pas dans TON périmètre (ex: l'artisan parlait d'un devis avec Marie et a juste répondu 'excel' ou 'word' ou 'oui'), tu dis HONNÊTEMENT en une phrase courte : 'Ça c'est plutôt pour Marie' (ou Lucas selon le sujet) et c'est tout. Tu n'INVENTES JAMAIS une activité de prospection, tu ne PROMETS PAS de 'leads qualifiés', de 'scraper en maintenance', de résultats 'demain matin', etc., si l'artisan ne t'a PAS explicitement demandé de la prospection. Mieux vaut passer la main qu'inventer une mission.",
 };
 
 export function buildAgentSystemPrompt(ctx: PromptContext): string {

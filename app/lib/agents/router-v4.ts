@@ -114,6 +114,74 @@ Règles strictes :
 Format JSON exact (toutes les clés obligatoires) :
 {"target_agent":"ADMIN|MARKETING|COMMERCIAL","intent":"<intent>","needs_artifact":true|false,"cross_domain":true|false,"confidence":0.0-1.0,"reason":"<≤120 chars>"}`;
 
+// ─── Short-circuit continuity rules ──────────────────────────
+//
+// Le router LLM, même avec une règle de continuité explicite dans le system
+// prompt, dérape sur des messages courts ambigus comme "et en excel" → il
+// voit "excel" comme un signal "tableur de leads" et tombe sur Samir qui
+// hallucine derrière. Ces règles programmatiques court-circuitent l'appel
+// LLM pour les cas évidents de continuation, en forçant le dernier agent
+// qui a parlé.
+
+const STRONG_KEYWORDS_OTHER_DOMAIN = {
+  MARKETING: /\b(google\s?my\s?business|gmb|fiche\s?google|avis\s?google|seo\s?local|réseaux?\s?sociaux|insta(?:gram)?|facebook|post\s?google|réputation)\b/i,
+  COMMERCIAL: /\b(prospect(?:ion|er)|lead\s?qualifi|annuaire|habitatpresto|marché\s?public|impayé|recouvrement|fournisseur\s?nego|nouveaux?\s?clients?\s?à\s?trouver)\b/i,
+  ADMIN: /\b(devis|facture|relance\s?paiement|inbox|email\s?client|planning|rdv|rendez-vous)\b/i,
+};
+
+/**
+ * Detects if a message is clearly a CONTINUATION of the previous turn —
+ * a short response, follow-up command, or answer to an option Marie/Lucas/Samir
+ * just proposed (e.g. "PDF ou Excel ?" → "excel").
+ *
+ * Returns the agent to force, or null if no short-circuit applies.
+ */
+function detectContinuationShortCircuit(
+  text: string,
+  lastAssistantAgent: AgentType | undefined,
+  availableAgents: AgentType[]
+): AgentType | null {
+  if (!lastAssistantAgent) return null;
+  if (!availableAgents.includes(lastAssistantAgent)) return null;
+
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+
+  // Trop long pour être une continuation pure
+  if (trimmed.length > 80) return null;
+
+  // Mots-clés explicites du domaine d'un AUTRE agent → le router LLM tranche.
+  // (ex: si lastAgent=ADMIN mais le message dit "trouve-moi des prospects",
+  // c'est bien un changement de sujet vers COMMERCIAL.)
+  for (const [otherAgent, regex] of Object.entries(STRONG_KEYWORDS_OTHER_DOMAIN)) {
+    if (otherAgent !== lastAssistantAgent && regex.test(lower)) {
+      return null; // changement de sujet probable, laisse le LLM décider
+    }
+  }
+
+  // Patterns de continuation forts (réponses courtes, commandes de suivi)
+  const continuationPatterns = [
+    /^(ok|d'accord|daccord|oui|non|merci|parfait|nickel|génial|super)\s*[!?.]*\s*$/i,
+    /^(vas-?y|fais\s?(?:le|ça)?|envoie\s?(?:le|ça)?|génère|genere|continue|relance|recommence)\s*[!?.]*\s*$/i,
+    /^(pdf|word|excel|docx|xlsx|csv)\s*[!?.]*\s*$/i,
+    /^et\s+en\s+(pdf|word|excel|docx|xlsx)\s*[!?.]*\s*$/i,
+    /^(annule|stop|attends|laisse\s?tomber)\s*[!?.]*\s*$/i,
+    /^(change|modifie|ajoute|enlève|enleve|retire|remplace)\s/i,
+    /^merci\s*,?\s*(change|modifie|ajoute|fais|envoie|relance|et)/i,
+  ];
+  for (const re of continuationPatterns) {
+    if (re.test(trimmed)) return lastAssistantAgent;
+  }
+
+  // Heuristique générale : message ultra-court (<= 25 chars) sans mot-clé
+  // explicite vers un autre métier → continuation par défaut.
+  if (trimmed.length <= 25) {
+    return lastAssistantAgent;
+  }
+
+  return null;
+}
+
 /**
  * Route a message to a single agent.
  * Falls back to ADMIN with low confidence if the LLM output can't be parsed.
@@ -122,8 +190,25 @@ export async function routeMessage(opts: {
   text: string;
   availableAgents: AgentType[];
   recentHistorySnippet?: string;
+  /** Last agent who signed an assistant message in this conversation.
+   *  Used by the programmatic continuity short-circuit. */
+  lastAssistantAgent?: AgentType;
 }): Promise<RouterDecision> {
-  const { text, availableAgents, recentHistorySnippet } = opts;
+  const { text, availableAgents, recentHistorySnippet, lastAssistantAgent } = opts;
+
+  // ─── Short-circuit programmatique de continuité ─────────────
+  // Bypass complètement le LLM router pour les cas évidents.
+  const forced = detectContinuationShortCircuit(text, lastAssistantAgent, availableAgents);
+  if (forced) {
+    return {
+      target_agent: forced,
+      intent: "unknown",
+      needs_artifact: /\b(pdf|word|excel|docx|xlsx|envoie|génère|fais|change|modifie|ajoute)\b/i.test(text),
+      cross_domain: false,
+      confidence: 0.95,
+      reason: `continuity_shortcircuit_lastAgent=${forced}`,
+    };
+  }
 
   const userPrompt = [
     recentHistorySnippet

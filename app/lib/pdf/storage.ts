@@ -23,28 +23,38 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 /**
- * Ensures the devis-pdfs bucket exists and is configured for public access.
+ * Ensures the devis-pdfs bucket exists AND has the right MIME types policy.
  * Le bucket accepte PDF + DOCX + XLSX (formats modifiables que Marie peut envoyer
  * sur demande pour que l'artisan finalise dans son outil).
+ *
+ * Si le bucket existe déjà mais avec une policy obsolète (ex: créé avant
+ * l'ajout de DOCX/XLSX), on le met à jour automatiquement via updateBucket.
  */
 export async function ensureDevisBucket(): Promise<void> {
   try {
-    // Try to get bucket info
     const { data: buckets } = await supabase.storage.listBuckets();
-    const exists = buckets?.some((b) => b.name === BUCKET_NAME);
+    const existing = buckets?.find((b) => b.name === BUCKET_NAME);
 
-    if (exists) return;
+    if (!existing) {
+      await supabase.storage.createBucket(BUCKET_NAME, {
+        public: true,
+        fileSizeLimit: 10485760, // 10 MB
+        allowedMimeTypes: ALLOWED_MIME_TYPES,
+      });
+      console.log(`[Storage] Created bucket: ${BUCKET_NAME}`);
+      return;
+    }
 
-    // Create bucket if it doesn't exist
-    await supabase.storage.createBucket(BUCKET_NAME, {
+    // Bucket existe — vérifier que la policy MIME types est à jour.
+    // Note : l'API listBuckets ne renvoie pas allowed_mime_types, donc on
+    // appelle updateBucket de manière idempotente : si la policy est déjà
+    // bonne, ça ne fait rien de visible.
+    await supabase.storage.updateBucket(BUCKET_NAME, {
       public: true,
-      fileSizeLimit: 10485760, // 10 MB
+      fileSizeLimit: 10485760,
       allowedMimeTypes: ALLOWED_MIME_TYPES,
     });
-
-    console.log(`[Storage] Created bucket: ${BUCKET_NAME}`);
   } catch (err: any) {
-    // Bucket might already exist, ignore gracefully
     if (!err.message?.includes('already exists')) {
       console.error('[Storage] Error ensuring bucket:', err);
     }
