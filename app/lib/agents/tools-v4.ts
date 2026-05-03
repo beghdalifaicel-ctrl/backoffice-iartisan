@@ -333,21 +333,17 @@ export const TOOLS: ToolDefinition[] = [
     name: "summarizeInbox",
     agent: "ADMIN",
     description:
-      "Résume les emails non lus de la boîte de l'artisan (via intégration Gmail/IMAP côté serveur). Renvoie une synthèse en 5 lignes max.",
+      "[NON DISPONIBLE — n'utilise PAS ce tool] Résume les emails non lus. L'intégration Gmail/IMAP n'est PAS branchée. Si l'artisan demande de résumer sa boîte, dis-lui honnêtement que tu n'as pas accès à ses emails et propose-lui de te transférer manuellement les messages importants.",
     argsHint: '{ "since_hours": 24 }',
-    exec: async (args, ctx) => {
-      await ctx.emitStatus("Je lis ta boîte mail…");
-      // Stub : à brancher sur l'intégration réelle. On retourne un placeholder
-      // structuré pour que l'agent compose une réponse cohérente.
+    exec: async (_args, _ctx) => {
+      // Tool désactivé : sans accès Gmail réel, retourner ok:true + counts à 0
+      // ferait halluciner Marie ("ta boîte est calme aujourd'hui"). On force
+      // la transparence.
       return {
-        ok: true,
-        summary: "Inbox parcourue",
-        data: {
-          since_hours: args.since_hours || 24,
-          unread_count: 0,
-          top_threads: [],
-          note: "Intégration Gmail à brancher (stub).",
-        },
+        ok: false,
+        summary:
+          "Accès à la boîte mail NON branché. Dis honnêtement à l'artisan : 'Je n'ai pas encore accès à ta boîte mail directement. Si tu veux, transfère-moi les emails importants et je te les résume / prépare une réponse.'",
+        error: "tool_not_implemented",
       };
     },
   },
@@ -421,19 +417,16 @@ export const TOOLS: ToolDefinition[] = [
     name: "fetchRecentReviews",
     agent: "MARKETING",
     description:
-      "Récupère les avis Google récents non répondus. Renvoie liste : id, rating, review_text, date.",
-    argsHint: '{ "since_days": 30, "min_rating"?: 1, "max_rating"?: 5, "only_unanswered": true }',
-    exec: async (args, ctx) => {
-      await ctx.emitStatus("Je récupère tes avis Google…");
-      // Stub : intégration GMB API à brancher (cf. memory iArtisan J14).
+      "[NON DISPONIBLE — n'utilise PAS ce tool] Récupère les avis Google récents. L'intégration GMB Reviews API n'est PAS branchée (en cours de validation Google). Si l'artisan demande à voir / répondre à ses avis, dis-lui honnêtement que la connexion GMB est en cours et propose-lui de te coller les avis pour préparer des réponses.",
+    argsHint: '{ "since_days": 30 }',
+    exec: async (_args, _ctx) => {
+      // Tool désactivé : sans GMB API, retourner reviews:[] ferait dire à Lucas
+      // "tu n'as pas de nouveaux avis" — c'est faux car on n'en sait rien.
       return {
-        ok: true,
-        summary: "Avis récupérés (stub)",
-        data: {
-          since_days: args.since_days || 30,
-          reviews: [],
-          note: "Intégration GMB API à brancher (stub).",
-        },
+        ok: false,
+        summary:
+          "Connexion GMB Reviews NON branchée (en cours de validation Google). Dis honnêtement à l'artisan : 'Je n'ai pas encore l'accès direct à tes avis Google. Si tu me colles le texte d'un avis (ou un screenshot), je te prépare une réponse calée sur la note.'",
+        error: "tool_not_implemented",
       };
     },
   },
