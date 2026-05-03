@@ -327,16 +327,30 @@ async function sendEmail(to: string, subject: string, html: string) {
   }
 
   try {
-    const result = await getResend().emails.send({
+    const result: any = await getResend().emails.send({
       from: FROM_EMAIL,
       to,
       subject,
       html,
     });
-    console.log(`[EMAIL OK] Sent to ${to}: ${subject}`, result);
-    return { success: true, data: result };
+    // Resend SDK returns { data, error } — un échec ne throw PAS, il revient
+    // dans `result.error`. On doit donc le checker explicitement.
+    if (result?.error) {
+      console.error(
+        `[EMAIL ERROR] Resend rejected to ${to} | subject="${subject}" | from="${FROM_EMAIL}" | error=${JSON.stringify(
+          result.error
+        )}`
+      );
+      return { success: false, error: result.error };
+    }
+    console.log(
+      `[EMAIL OK] Sent to ${to} | subject="${subject}" | id=${result?.data?.id || "?"}`
+    );
+    return { success: true, data: result?.data };
   } catch (error: any) {
-    console.error(`[EMAIL ERROR] Failed to send to ${to}: ${subject}`, error);
-    return { success: false, error: error.message };
+    console.error(
+      `[EMAIL ERROR] Throw to ${to} | subject="${subject}" | err=${error?.message || String(error)}`
+    );
+    return { success: false, error: error?.message || String(error) };
   }
 }
