@@ -175,6 +175,10 @@ export function buildToolResultFollowup(
     "Résultats des outils que tu viens d'appeler :",
     blocks.join("\n"),
     "",
-    "Réécris ta réponse à l'artisan en tenant compte de ces résultats. Si un outil a renvoyé une instruction de transparence (\"dis honnêtement à l'artisan que...\"), suis-la TEXTUELLEMENT — n'invente JAMAIS un succès quand le tool a échoué. Garde 2-3 phrases max, pas de Markdown.",
+    "Réécris ta réponse à l'artisan en tenant compte de ces résultats. RÈGLES STRICTES :",
+    "1. Pour CHAQUE outil [OK], CONFIRME EXPLICITEMENT l'action en 1 phrase courte (\"Post publié sur ta fiche Google\", \"Mise en demeure programmée\", \"Devis envoyé\", \"Brouillon de réponse prêt\"). N'enchaîne JAMAIS direct sur une question sans dire ce qui a été fait.",
+    "2. Pour les outils [ERREUR] avec instruction de transparence (\"dis honnêtement à l'artisan que...\"), suis l'instruction TEXTUELLEMENT — n'invente JAMAIS un succès quand le tool a échoué.",
+    "3. Après la confirmation, tu peux poser UNE question de suivi si utile (ex: \"Tu veux ajouter une photo ?\").",
+    "4. Garde 2-3 phrases max, pas de Markdown.",
   ].join("\n");
 }
