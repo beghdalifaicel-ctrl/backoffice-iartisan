@@ -30,6 +30,7 @@ import {
 } from "@/lib/agents/tools-v4";
 import { buildAgentSystemPrompt, buildToolResultFollowup } from "@/lib/agents/prompts-v4";
 import { detectAndLogAlerts } from "@/lib/agents/alerts";
+import { validateAgentReply, type ValidatorVerdict } from "@/lib/agents/reflective-validator";
 
 const supabase = createClient(
   process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
@@ -393,6 +394,96 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   ).trim();
   if (!finalReply) {
     finalReply = "Dis-moi exactement ce qu'il faut corriger et je m'en occupe.";
+  }
+
+  // 7.7) Reflective validator — auto-correction temps réel
+  //
+  // Avant d'envoyer la réponse à l'artisan, un LLM réflexif relit le tour
+  // pour attraper les violations sémantiques que les regex ne voient pas
+  // (mention spontanée d'agent, sortie de périmètre, ton inadapté,
+  // promesses au nom d'autres agents, etc.).
+  //
+  // Si une violation MAJEURE est détectée, on relance l'agent UNE fois avec
+  // un prompt de correction. Le retry est persisté dans agent_retries pour
+  // observabilité. Limité à 1 retry max pour borner le coût et la latence.
+  const replyBeforeReflexive = finalReply;
+  const customInstructionsForRetry = await getCustomInstructions(client.id, target);
+  let validatorVerdict: ValidatorVerdict | null = null;
+  try {
+    validatorVerdict = await validateAgentReply({
+      agentType: target,
+      agentName,
+      userMessage: text,
+      agentReply: finalReply,
+      contextSnippet: historySnippet || undefined,
+      toolCallsMade: toolCalls.map((c) => c.name),
+      customInstructions: customInstructionsForRetry,
+    });
+  } catch (err: any) {
+    console.error("[orchestrator] reflective validator threw:", err?.message || err);
+  }
+
+  if (validatorVerdict?.needs_retry && validatorVerdict.correction_hint) {
+    console.warn(
+      `[orchestrator] Reflective retry for ${target} | violations=${validatorVerdict.violations
+        .map((v) => `${v.type}(${v.severity})`)
+        .join(",")} | hint="${validatorVerdict.correction_hint}"`
+    );
+
+    const retryPrompt = [
+      userPromptForAgent,
+      "",
+      `Ta première réponse contenait des problèmes :`,
+      ...validatorVerdict.violations
+        .filter((v) => v.severity === "major")
+        .map((v) => `- ${v.type} : ${v.explanation}`),
+      "",
+      `Correction demandée : ${validatorVerdict.correction_hint}`,
+      "",
+      `Réécris ta réponse en respectant strictement ces corrections. Pas de Markdown, 2-3 phrases max, ne mentionne PAS d'autre agent si tu n'y es pas obligé, et N'ENGAGE PAS de date/délai si tu n'as pas appelé scheduleTask.`,
+    ].join("\n");
+
+    try {
+      const retryPass = await callLLM({
+        taskType: "agent.retry",
+        systemPrompt,
+        userPrompt: retryPrompt,
+        maxTokens: 300,
+        temperature: 0.3,
+      });
+      const retryParsed = parseToolCalls(retryPass.content || "");
+      let retryReply = retryParsed.cleanedText.trim();
+      // Re-strip self-flagellation au cas où
+      retryReply = retryReply
+        .replace(
+          /^(Désolée?,?\s+(j['’]?ai\s+merdé|j['’]?ai\s+merdoyé|j['’]?ai\s+raté|j['’]?ai\s+foiré|c['’]?était\s+nul)[.!?]?\s*)/i,
+          ""
+        )
+        .trim();
+      if (retryReply) {
+        finalReply = retryReply;
+      }
+    } catch (err: any) {
+      console.error("[orchestrator] retry LLM call failed:", err?.message || err);
+    }
+
+    // Persistance fire-and-forget pour observabilité
+    supabase
+      .from("agent_retries")
+      .insert({
+        client_id: client.id,
+        phone: normalizedPhone,
+        agent_signed_as: target,
+        user_message: text.slice(0, 1500),
+        original_reply: replyBeforeReflexive.slice(0, 1500),
+        violations: validatorVerdict.violations,
+        correction_hint: validatorVerdict.correction_hint,
+        corrected_reply: finalReply.slice(0, 1500),
+        retry_index: 1,
+      })
+      .then(({ error }) => {
+        if (error) console.error("[agent_retries] insert error:", error.message);
+      });
   }
 
   // 8) Send the agent's final reply
