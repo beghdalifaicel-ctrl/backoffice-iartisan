@@ -1,12 +1,16 @@
 /**
  * Devis Generation & Delivery Flow
  *
- * Orchestrates the full devis workflow:
+ * Orchestrates the full devis workflow on WhatsApp :
  * 1. Parse LLM response to extract devis data
  * 2. Generate PDF via pdf-lib
  * 3. Upload to Supabase Storage
- * 4. Send to artisan via WhatsApp as document
- * 5. Store metadata in database
+ * 4. Persist snapshot in `agent_devis` (raw SQL, hors Prisma)
+ * 5. Return URL — sending to artisan is handled by the orchestrator
+ *
+ * Pivot WhatsApp-first (01/05/2026) : les modèles Prisma BTP ont été supprimés.
+ * Tous les devis générés par les agents IA vivent dans la table `agent_devis`,
+ * qui supporte le versioning (Marie peut éditer un devis et créer un v2).
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -27,30 +31,57 @@ export interface DevisGenerationRequest {
   clientAddress?: string;
   clientEmail?: string;
   userPhone: string;
-  userMessage: string; // Original user request (from chat)
+  userMessage: string;
 }
 
 export interface DevisGenerationResult {
   success: boolean;
   documentUrl?: string;
   devisNumber?: string;
+  version?: number;
   error?: string;
   message: string;
 }
 
-// ─── EXTRACT DEVIS DATA FROM LLM ───────────────────────────────────
+export interface DevisEditRequest {
+  clientId: string;
+  /** E.164 normalized digits-only phone of the artisan (used to find latest devis if devisNumber omitted). */
+  userPhone: string;
+  /** Explicit devis number (DEV-2026-XXXX). If omitted, latest devis from this user_phone is loaded. */
+  devisNumber?: string;
+  /** Free-form modification request from the artisan (NL). */
+  modifications: string;
+}
+
+interface AgentDevisRow {
+  id: string;
+  client_id: string;
+  devis_number: string;
+  version: number;
+  client_name: string;
+  client_address: string | null;
+  client_email: string | null;
+  items: DevisItem[];
+  conditions: string | null;
+  tva_rate: number;
+  total_ht: number;
+  total_tva: number;
+  total_ttc: number;
+  pdf_url: string | null;
+  source: string;
+  user_phone: string;
+  user_message: string | null;
+  status: string;
+  superseded_by_id: string | null;
+  created_at: string;
+}
+
+// ─── EXTRACT DEVIS DATA FROM LLM (initial generation) ──────────────
 
 async function extractDevisDataFromLLM(
   clientContext: any,
   userMessage: string
 ): Promise<{ items: DevisItem[]; conditions?: string } | null> {
-  /**
-   * Use LLM to parse user message and extract structured devis data
-   * LLM should extract:
-   * - Line items (description, quantity, unit price)
-   * - Payment conditions (if mentioned)
-   */
-
   const systemPrompt = `Tu es un assistant expert en extraction de données pour la génération de devis BTP.
 
 Analyse le message de l'utilisateur et extrais une liste d'articles à inclure dans le devis.
@@ -103,53 +134,175 @@ Règles:
   }
 }
 
-// ─── GENERATE NEXT DEVIS NUMBER ───────────────────────────────────
+// ─── APPLY MODIFICATIONS TO EXISTING DEVIS (LLM edit) ──────────────
 
-async function generateNextDevisNumber(clientId: string): Promise<string> {
-  /**
-   * Generate unique devis number: DEV-2026-0001
-   * Based on client ID and sequential number
-   */
+async function applyModificationsViaLLM(
+  current: { items: DevisItem[]; conditions?: string; tvaRate: number },
+  modifications: string,
+  clientContext: { company: string; metier: string }
+): Promise<{ items: DevisItem[]; conditions?: string; tvaRate: number } | null> {
+  const systemPrompt = `Tu modifies un devis BTP existant à la demande d'un artisan ${clientContext.metier}.
+
+Voici le devis ACTUEL :
+${JSON.stringify({ items: current.items, conditions: current.conditions, tva_rate: current.tvaRate }, null, 2)}
+
+Demande de modification de l'artisan (langage naturel) :
+"""
+${modifications}
+"""
+
+Tu dois renvoyer le nouveau devis COMPLET au format JSON strict (UNIQUEMENT le JSON) :
+{
+  "items": [ { "description": "...", "quantity": 1, "unitPriceHT": 100.00, "unite": "u" }, ... ],
+  "conditions": "...",
+  "tva_rate": 10
+}
+
+Règles strictes :
+- Conserve TOUTES les lignes inchangées telles quelles (mêmes descriptions, mêmes prix, mêmes quantités).
+- Modifie UNIQUEMENT ce que l'artisan demande explicitement.
+- Si l'artisan demande "ajoute une ligne X", ajoute la ligne en bas avec un prix réaliste pour ${clientContext.metier}.
+- Si l'artisan demande "retire/supprime la ligne X", retire la ligne correspondante.
+- Si l'artisan demande de changer la TVA (ex: "passe en TVA 20%"), modifie tva_rate.
+- Si l'artisan modifie les conditions de paiement, modifie conditions.
+- Pas d'invention de lignes hors demande explicite.
+- Format unités : u, m², ml, m³, h, forfait, kg, l.`;
 
   try {
-    // Get the highest devis number for this client
+    const response = await callLLM({
+      taskType: 'quote.edit',
+      systemPrompt,
+      userPrompt: modifications,
+      maxTokens: 1500,
+      responseFormat: 'json',
+      temperature: 0.2,
+    });
+
+    const content = response.content || '{}';
+    const parsed = JSON.parse(content);
+
+    if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+      console.warn('[Devis edit] Invalid items structure from LLM:', parsed);
+      return null;
+    }
+
+    return {
+      items: parsed.items,
+      conditions: parsed.conditions ?? current.conditions,
+      tvaRate: typeof parsed.tva_rate === 'number' ? parsed.tva_rate : current.tvaRate,
+    };
+  } catch (err: any) {
+    console.error('[Devis edit] LLM error:', err);
+    return null;
+  }
+}
+
+// ─── DEVIS NUMBER GENERATION (reads from agent_devis) ──────────────
+
+async function generateNextDevisNumber(clientId: string): Promise<string> {
+  try {
+    // Numéro le plus haut pour ce client cette année
+    const yearPrefix = `DEV-${new Date().getFullYear()}-`;
     const { data: lastDevis } = await supabase
-      .from('devis')
-      .select('number')
-      .eq('clientId', clientId)
-      .order('createdAt', { ascending: false })
-      .limit(1);
+      .from('agent_devis')
+      .select('devis_number')
+      .eq('client_id', clientId)
+      .like('devis_number', `${yearPrefix}%`)
+      .order('created_at', { ascending: false })
+      .limit(20); // ~suffisant : on parse pour trouver le plus haut numéro
 
     let nextNum = 1;
     if (lastDevis && lastDevis.length > 0) {
-      const lastNumber = lastDevis[0].number; // DEV-2026-0001
-      const match = lastNumber.match(/DEV-(\d+)-(\d+)$/);
-      if (match) {
-        const year = parseInt(match[1]);
-        const num = parseInt(match[2]);
-        // If same year, increment; else reset to 1
-        nextNum = new Date().getFullYear() === year ? num + 1 : 1;
+      const numbers = lastDevis
+        .map((d) => {
+          const m = d.devis_number.match(/^DEV-\d+-(\d+)$/);
+          return m ? parseInt(m[1], 10) : 0;
+        })
+        .filter((n) => n > 0);
+      if (numbers.length > 0) {
+        nextNum = Math.max(...numbers) + 1;
       }
     }
 
     const year = new Date().getFullYear();
-    const numStr = nextNum.toString().padStart(4, '0');
-    return `DEV-${year}-${numStr}`;
+    return `DEV-${year}-${nextNum.toString().padStart(4, '0')}`;
   } catch (err: any) {
     console.error('[Devis] Error generating number:', err);
-    // Fallback: use timestamp-based number
+    // Fallback : timestamp
     return `DEV-${Date.now()}`;
   }
 }
 
-// ─── MAIN DEVIS GENERATION FLOW ─────────────────────────────────
+// ─── COMPUTE TOTALS ────────────────────────────────────────────────
+
+function computeTotals(items: DevisItem[], tvaRate: number) {
+  let totalHT = 0;
+  for (const item of items) totalHT += item.quantity * item.unitPriceHT;
+  const totalTVA = totalHT * (tvaRate / 100);
+  const totalTTC = totalHT + totalTVA;
+  return {
+    totalHT: Math.round(totalHT * 100) / 100,
+    totalTVA: Math.round(totalTVA * 100) / 100,
+    totalTTC: Math.round(totalTTC * 100) / 100,
+  };
+}
+
+// ─── PERSIST DEVIS IN agent_devis ──────────────────────────────────
+
+async function persistAgentDevis(input: {
+  clientId: string;
+  devisNumber: string;
+  version: number;
+  clientName: string;
+  clientAddress?: string;
+  clientEmail?: string;
+  items: DevisItem[];
+  conditions?: string;
+  tvaRate: number;
+  pdfUrl: string;
+  source: 'photo' | 'text' | 'edit';
+  userPhone: string;
+  userMessage: string;
+}): Promise<string | null> {
+  const { totalHT, totalTVA, totalTTC } = computeTotals(input.items, input.tvaRate);
+  const { data, error } = await supabase
+    .from('agent_devis')
+    .insert({
+      client_id: input.clientId,
+      devis_number: input.devisNumber,
+      version: input.version,
+      client_name: input.clientName,
+      client_address: input.clientAddress || null,
+      client_email: input.clientEmail || null,
+      items: input.items,
+      conditions: input.conditions || null,
+      tva_rate: input.tvaRate,
+      total_ht: totalHT,
+      total_tva: totalTVA,
+      total_ttc: totalTTC,
+      pdf_url: input.pdfUrl,
+      source: input.source,
+      user_phone: input.userPhone,
+      user_message: input.userMessage.substring(0, 5000),
+      status: 'sent',
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('[Devis] persistAgentDevis error:', error);
+    return null;
+  }
+  return data?.id || null;
+}
+
+// ─── MAIN GENERATION FLOW (initial devis) ──────────────────────────
 
 export async function handleDevisGeneration(
   request: DevisGenerationRequest
 ): Promise<DevisGenerationResult> {
   try {
-    // ─── Step 1: Get client context ─────────────────────────────
-
+    // 1. Get client context
     const { data: client } = await supabase
       .from('clients')
       .select('company, metier, ville, siret, phone, email, adresse')
@@ -164,142 +317,71 @@ export async function handleDevisGeneration(
       };
     }
 
-    // ─── Step 2: Extract devis data from user message ───────────
-
+    // 2. Extract devis data from user message
     const extractedData = await extractDevisDataFromLLM(client, request.userMessage);
-
     if (!extractedData || !extractedData.items || extractedData.items.length === 0) {
       return {
         success: false,
         error: 'Failed to extract devis items',
-        message: 'Je n\'ai pas pu extraire les articles du devis. Pouvez-vous être plus détaillé ? (ex: "Pose de carrelage 50m² à 80€/m²")',
+        message:
+          "Je n'ai pas pu extraire les articles du devis. Pouvez-vous être plus détaillé ? (ex: \"Pose de carrelage 50m² à 80€/m²\")",
       };
     }
 
-    // ─── Step 3: Generate devis number ──────────────────────────
-
+    // 3. Generate devis number
     const devisNumber = await generateNextDevisNumber(request.clientId);
+    const tvaRate = 10; // BTP rénovation par défaut
 
-    // ─── Step 4: Prepare PDF data ──────────────────────────────
-
+    // 4. Prepare PDF data
     const devisData: DevisData = {
-      // Company (artisan)
       company: client.company,
       metier: client.metier,
       siret: client.siret,
       address: client.adresse,
       phone: client.phone,
       email: client.email,
-
-      // Devis header
       devisNumber,
       date: new Date(),
       validityDays: 30,
-
-      // Client
       clientName: request.clientName,
       clientAddress: request.clientAddress,
       clientEmail: request.clientEmail,
-
-      // Items
       items: extractedData.items,
-
-      // Rates & conditions
-      tvaRate: 10, // BTP rénovation = 10%, construction = 20%
-      conditions: extractedData.conditions || 'Acompte 30% à la commande, solde à la fin des travaux.',
+      tvaRate,
+      conditions:
+        extractedData.conditions ||
+        'Acompte 30% à la commande, solde à la fin des travaux.',
     };
 
-    // ─── Step 5: Generate PDF ──────────────────────────────────
-
+    // 5. Generate PDF + upload
     console.log(`[Devis] Generating PDF for ${devisNumber}...`);
     const pdfBytes = await generateDevisPDF(devisData);
-
-    // ─── Step 6: Upload to Supabase Storage ────────────────────
-
     const filename = `${devisNumber}.pdf`;
-    console.log(`[Devis] Uploading PDF to storage...`);
     const documentUrl = await uploadDevisPDF(pdfBytes, filename);
 
-    // ─── Step 7: Store metadata in database ────────────────────
-
-    try {
-      // Calculate totals
-      let totalHT = 0;
-      for (const item of devisData.items) {
-        totalHT += item.quantity * item.unitPriceHT;
-      }
-      const totalTVA = totalHT * ((devisData.tvaRate || 10) / 100);
-      const totalTTC = totalHT + totalTVA;
-
-      // Find or create customer contact
-      let customerId = null;
-
-      // Try to find existing customer by name
-      const { data: existingCustomer } = await supabase
-        .from('customer_contacts')
-        .select('id')
-        .eq('clientId', request.clientId)
-        .eq('name', request.clientName)
-        .single();
-
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
-      } else {
-        // Create new customer contact
-        const { data: newCustomer, error: customerError } = await supabase
-          .from('customer_contacts')
-          .insert({
-            clientId: request.clientId,
-            name: request.clientName,
-            email: request.clientEmail,
-            adresse: request.clientAddress,
-            type: 'PARTICULIER',
-          })
-          .select('id')
-          .single();
-
-        if (customerError || !newCustomer) {
-          console.warn('[Devis] Could not create customer contact:', customerError);
-          // Continue anyway, customer is optional
-        } else {
-          customerId = newCustomer.id;
-        }
-      }
-
-      // Insert devis record (if customer exists)
-      if (customerId) {
-        const { error: devisError } = await supabase
-          .from('devis')
-          .insert({
-            clientId: request.clientId,
-            customerId,
-            number: devisNumber,
-            objet: extractedData.items.map((i) => i.description).join(', ').substring(0, 100),
-            status: 'ENVOYE',
-            conditions: devisData.conditions,
-            totalHT: Math.round(totalHT * 100) / 100,
-            totalTVA: Math.round(totalTVA * 100) / 100,
-            totalTTC: Math.round(totalTTC * 100) / 100,
-            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-          });
-
-        if (devisError) {
-          console.warn('[Devis] Could not save devis to database:', devisError);
-          // Don't fail, we still have the PDF URL
-        }
-      }
-    } catch (dbErr: any) {
-      console.error('[Devis] Database error:', dbErr);
-      // Continue, the PDF is generated and uploaded
-    }
-
-    // ─── Step 8: Return success ────────────────────────────────
+    // 6. Persist in agent_devis
+    await persistAgentDevis({
+      clientId: request.clientId,
+      devisNumber,
+      version: 1,
+      clientName: request.clientName,
+      clientAddress: request.clientAddress,
+      clientEmail: request.clientEmail,
+      items: extractedData.items,
+      conditions: devisData.conditions,
+      tvaRate,
+      pdfUrl: documentUrl,
+      source: 'text',
+      userPhone: request.userPhone,
+      userMessage: request.userMessage,
+    });
 
     return {
       success: true,
       documentUrl,
       devisNumber,
-      message: `Devis ${devisNumber} généré avec succès ! Un document PDF a été créé et peut être envoyé au client.`,
+      version: 1,
+      message: `Devis ${devisNumber} généré avec succès.`,
     };
   } catch (err: any) {
     console.error('[Devis] Generation error:', err);
@@ -311,9 +393,162 @@ export async function handleDevisGeneration(
   }
 }
 
+// ─── EDIT FLOW ─────────────────────────────────────────────────────
+//
+// Trouve un devis existant (par numéro explicite ou par dernier de l'artisan),
+// applique les modifs via LLM, crée une nouvelle version, marque l'ancienne
+// comme superseded et régénère le PDF.
+
+export async function editDevisGeneration(
+  request: DevisEditRequest
+): Promise<DevisGenerationResult> {
+  try {
+    // 1. Get client context (pour le PDF)
+    const { data: client } = await supabase
+      .from('clients')
+      .select('company, metier, ville, siret, phone, email, adresse')
+      .eq('id', request.clientId)
+      .single();
+
+    if (!client) {
+      return {
+        success: false,
+        error: 'Client not found',
+        message: "Impossible de récupérer les infos de votre entreprise.",
+      };
+    }
+
+    // 2. Find target devis
+    let target: AgentDevisRow | null = null;
+    if (request.devisNumber) {
+      // Mention explicite : on prend la dernière version de ce numéro
+      const { data } = await supabase
+        .from('agent_devis')
+        .select('*')
+        .eq('client_id', request.clientId)
+        .eq('devis_number', request.devisNumber)
+        .order('version', { ascending: false })
+        .limit(1);
+      target = data?.[0] || null;
+    } else {
+      // Pas de numéro : dernier devis envoyé sur ce numéro WhatsApp
+      const { data } = await supabase
+        .from('agent_devis')
+        .select('*')
+        .eq('client_id', request.clientId)
+        .eq('user_phone', request.userPhone)
+        .in('status', ['sent', 'accepted']) // pas de superseded
+        .order('created_at', { ascending: false })
+        .limit(1);
+      target = data?.[0] || null;
+    }
+
+    if (!target) {
+      return {
+        success: false,
+        error: 'Devis not found',
+        message: request.devisNumber
+          ? `Je ne trouve pas le devis ${request.devisNumber}. Vérifie le numéro ou demande-moi le dernier devis sans numéro précis.`
+          : "Je ne trouve pas de devis récent à modifier. Tu peux m'en demander un nouveau ou me préciser le numéro (DEV-AAAA-XXXX).",
+      };
+    }
+
+    // 3. Apply modifications via LLM
+    const modified = await applyModificationsViaLLM(
+      {
+        items: target.items,
+        conditions: target.conditions || undefined,
+        tvaRate: target.tva_rate,
+      },
+      request.modifications,
+      { company: client.company, metier: client.metier }
+    );
+
+    if (!modified) {
+      return {
+        success: false,
+        error: 'LLM modification failed',
+        message:
+          "Je n'ai pas pu appliquer ta modification. Reformule plus simplement (ex: \"change la quantité de carrelage à 30m²\" ou \"ajoute une ligne pour le débarras 200€\").",
+      };
+    }
+
+    // 4. New version number = target.version + 1, même devis_number
+    const newVersion = target.version + 1;
+
+    // 5. Generate new PDF
+    const devisData: DevisData = {
+      company: client.company,
+      metier: client.metier,
+      siret: client.siret,
+      address: client.adresse,
+      phone: client.phone,
+      email: client.email,
+      devisNumber: target.devis_number, // même numéro, version incrémentée
+      date: new Date(),
+      validityDays: 30,
+      clientName: target.client_name,
+      clientAddress: target.client_address || undefined,
+      clientEmail: target.client_email || undefined,
+      items: modified.items,
+      tvaRate: modified.tvaRate,
+      conditions:
+        modified.conditions || 'Acompte 30% à la commande, solde à la fin des travaux.',
+    };
+
+    const pdfBytes = await generateDevisPDF(devisData);
+    const filename = `${target.devis_number}-v${newVersion}.pdf`;
+    const documentUrl = await uploadDevisPDF(pdfBytes, filename);
+
+    // 6. Insert new version
+    const newId = await persistAgentDevis({
+      clientId: request.clientId,
+      devisNumber: target.devis_number,
+      version: newVersion,
+      clientName: target.client_name,
+      clientAddress: target.client_address || undefined,
+      clientEmail: target.client_email || undefined,
+      items: modified.items,
+      conditions: modified.conditions,
+      tvaRate: modified.tvaRate,
+      pdfUrl: documentUrl,
+      source: 'edit',
+      userPhone: request.userPhone,
+      userMessage: request.modifications,
+    });
+
+    // 7. Mark previous version as superseded
+    if (newId) {
+      await supabase
+        .from('agent_devis')
+        .update({
+          status: 'superseded',
+          superseded_by_id: newId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', target.id);
+    }
+
+    return {
+      success: true,
+      documentUrl,
+      devisNumber: target.devis_number,
+      version: newVersion,
+      message: `Devis ${target.devis_number} modifié (v${newVersion}).`,
+    };
+  } catch (err: any) {
+    console.error('[Devis edit] Error:', err);
+    return {
+      success: false,
+      error: err.message,
+      message: `Erreur lors de la modification du devis : ${err.message}`,
+    };
+  }
+}
+
 /**
- * Extract devis data for template/preview
- * (used by WhatsApp flow to confirm before sending)
+ * Extract devis data for template/preview (used by other flows).
+ * Note : ne persiste rien.
  */
 export async function previewDevisData(
   clientId: string,

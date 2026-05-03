@@ -19,7 +19,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { AgentType } from "@/lib/agents/types";
-import { handleDevisGeneration } from "@/lib/pdf/devis-flow";
+import { handleDevisGeneration, editDevisGeneration } from "@/lib/pdf/devis-flow";
 
 const supabase = createClient(
   process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
@@ -83,7 +83,7 @@ export const TOOLS: ToolDefinition[] = [
     name: "generateDevisFromText",
     agent: "ADMIN",
     description:
-      "Génère un devis PDF à partir d'une description en texte. À utiliser dès que l'artisan demande un devis et a fourni au moins le type de prestation. PJ envoyée automatiquement à l'artisan.",
+      "Génère un devis PDF à partir d'une description en texte. À utiliser dès que l'artisan demande un devis et a fourni au moins le type de prestation. PJ envoyée automatiquement à l'artisan. APRÈS l'envoi, propose TOUJOURS la modification (le système ajoute le numéro du devis dans data, à reprendre dans ta réponse).",
     argsHint:
       '{ "client_name": "Mme Dupont", "client_address"?: "...", "client_email"?: "...", "description": "ravalement 80m² enduit minéral" }',
     exec: async (args, ctx) => {
@@ -100,18 +100,67 @@ export const TOOLS: ToolDefinition[] = [
         if (r.success && r.documentUrl) {
           return {
             ok: true,
-            summary: `Devis ${r.devisNumber} prêt`,
+            summary: `Devis ${r.devisNumber} prêt — propose la modification dans ta réponse`,
             attachment: {
               url: r.documentUrl,
               filename: r.devisNumber || "devis.pdf",
               caption: `Devis ${r.devisNumber}`,
             },
-            data: { devis_number: r.devisNumber, document_url: r.documentUrl },
+            data: {
+              devis_number: r.devisNumber,
+              version: r.version || 1,
+              document_url: r.documentUrl,
+              proactivity_hint:
+                "Termine ta réponse en proposant explicitement la modification : « Si tu veux changer quelque chose (quantité, prix, désignation, ajouter/retirer une ligne, modifier la TVA…), dis-le moi simplement et je te renvoie le devis modifié. »",
+            },
           };
         }
         return { ok: false, summary: "génération devis échouée", error: r.error || "unknown" };
       } catch (e: any) {
         return { ok: false, summary: "erreur devis", error: e?.message || String(e) };
+      }
+    },
+  },
+
+  {
+    name: "editDevis",
+    agent: "ADMIN",
+    description:
+      "Modifie un devis EXISTANT déjà envoyé à l'artisan. À utiliser quand l'artisan demande un changement (quantité, prix, désignation, ajout/retrait de ligne, modification TVA, conditions de paiement). " +
+      "Si l'artisan mentionne un numéro précis (DEV-AAAA-XXXX), le passer dans devis_number ; sinon laisser vide pour modifier le DERNIER devis envoyé. " +
+      "Les modifications sont en langage naturel — tu reformules brut ce que l'artisan a dit. PJ régénérée et envoyée automatiquement.",
+    argsHint:
+      '{ "devis_number"?: "DEV-2026-0042", "modifications": "passe la quantité de carrelage à 30m² et ajoute une ligne pour le débarras 200€" }',
+    exec: async (args, ctx) => {
+      await ctx.emitStatus("Modification du devis…");
+      try {
+        const r = await editDevisGeneration({
+          clientId: ctx.clientId,
+          userPhone: ctx.normalizedPhone,
+          devisNumber: args.devis_number,
+          modifications: args.modifications || "",
+        });
+        if (r.success && r.documentUrl) {
+          return {
+            ok: true,
+            summary: `Devis ${r.devisNumber} modifié (v${r.version})`,
+            attachment: {
+              url: r.documentUrl,
+              filename: `${r.devisNumber}-v${r.version}.pdf`,
+              caption: `Devis ${r.devisNumber} (v${r.version})`,
+            },
+            data: {
+              devis_number: r.devisNumber,
+              version: r.version,
+              document_url: r.documentUrl,
+              proactivity_hint:
+                "Termine ta réponse en proposant à nouveau la modification : « Encore d'autres changements à faire ? Dis-le moi, je relance. »",
+            },
+          };
+        }
+        return { ok: false, summary: "modification devis échouée", error: r.error || "unknown" };
+      } catch (e: any) {
+        return { ok: false, summary: "erreur édition devis", error: e?.message || String(e) };
       }
     },
   },
