@@ -135,6 +135,63 @@ function addText(
   state.y -= spacing * lines;
 }
 
+/**
+ * Wrap text into lines that each fit within maxWidth, measured with the
+ * actual font (avoids the approximate `text.length / 80` heuristic that
+ * caused stacked overlapping lines in production).
+ */
+function wrapText(text: string, maxWidth: number, font: any, size: number): string[] {
+  if (!text) return [''];
+  const safeText = sanitizeForWinAnsi(text);
+  // Split on whitespace + keep each word; long words that exceed maxWidth alone
+  // are still drawn on their own line (will overflow visually, but won't crash).
+  const words = safeText.split(/(\s+)/).filter((w) => w.length > 0);
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    const candidate = current + w;
+    const width = font.widthOfTextAtSize(candidate, size);
+    if (width > maxWidth && current.trim().length > 0) {
+      lines.push(current.trimEnd());
+      current = w.trimStart();
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.trim().length > 0) lines.push(current.trim());
+  return lines.length > 0 ? lines : [''];
+}
+
+/**
+ * Draw text that may wrap onto multiple lines and return the height consumed
+ * (so the caller can decrement state.y accordingly).
+ */
+function drawWrappedText(
+  state: PDFState,
+  text: string,
+  options: {
+    x: number;
+    maxWidth: number;
+    size: number;
+    font: any;
+    color?: any;
+    lineHeight?: number;
+  }
+): number {
+  const lineHeight = options.lineHeight ?? options.size + 3;
+  const lines = wrapText(text, options.maxWidth, options.font, options.size);
+  lines.forEach((line, idx) => {
+    state.page.drawText(line, {
+      x: options.x,
+      y: state.y - idx * lineHeight,
+      size: options.size,
+      font: options.font,
+      color: options.color,
+    });
+  });
+  return lines.length * lineHeight;
+}
+
 function newPage(document: any, font?: any, boldFont?: any) {
   const page = document.addPage([595, 842]); // A4
 
@@ -196,14 +253,16 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
     .filter(Boolean)
     .join(' • ');
 
-  state.page.drawText(companyDetails, {
+  // Use wrap-aware drawing so long company details don't overlap the DEVIS title.
+  const detailsHeight = drawWrappedText(state, companyDetails, {
     x: 50,
-    y: state.y,
+    maxWidth: 495,
     size: 9,
     font: helvetica,
     color: rgb(0.4, 0.4, 0.4),
+    lineHeight: 12,
   });
-  state.y -= 20;
+  state.y -= detailsHeight + 8;
 
   // Devis title
   state.page.drawText('DEVIS', {
@@ -323,49 +382,54 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
   state.y -= 8;
 
   // Items rows
+  // Each row's height is dictated by the number of lines the description wraps
+  // into. Quantity / Unit price / Total stay on the FIRST line of the row.
+  const descMaxWidth = 180;
+  const descLineHeight = 11;
+  const rowPadding = 4;
+
   for (const item of data.items) {
     const itemTotal = item.quantity * item.unitPriceHT;
     const itemTotalStr = formatCurrency(itemTotal);
     const priceStr = formatCurrency(item.unitPriceHT);
 
-    // Description + unite
+    // Description + unite (multi-ligne possible)
     const descWithUnit = `${item.description}${item.unite ? ` (${item.unite})` : ''}`;
-    state.page.drawText(descWithUnit, {
-      x: colX[0],
-      y: state.y,
-      size: 9,
-      font: helvetica,
-      maxWidth: 180,
+    const descLines = wrapText(descWithUnit, descMaxWidth, helvetica, 9);
+
+    descLines.forEach((line, idx) => {
+      state.page.drawText(line, {
+        x: colX[0],
+        y: state.y - idx * descLineHeight,
+        size: 9,
+        font: helvetica,
+      });
     });
 
-    // Quantity
+    // Quantity / prices stay aligned with the FIRST line of the description
     state.page.drawText(item.quantity.toString(), {
       x: colX[1],
       y: state.y,
       size: 9,
       font: helvetica,
-      maxWidth: 100,
     });
-
-    // Unit price
     state.page.drawText(priceStr, {
       x: colX[2],
       y: state.y,
       size: 9,
       font: helvetica,
-      maxWidth: 80,
     });
-
-    // Total
     state.page.drawText(itemTotalStr, {
       x: colX[3],
       y: state.y,
       size: 9,
       font: helveticaBold,
-      maxWidth: 70,
     });
 
-    state.y -= 14;
+    // Row height = number of description lines * lineHeight + padding,
+    // never less than 14 (single-line baseline).
+    const rowHeight = Math.max(14, descLines.length * descLineHeight + rowPadding);
+    state.y -= rowHeight;
   }
 
   state.y -= 8;
@@ -446,15 +510,14 @@ export async function generateDevisPDF(data: DevisData): Promise<Uint8Array> {
     });
     state.y -= 14;
 
-    state.page.drawText(data.conditions, {
+    const conditionsHeight = drawWrappedText(state, data.conditions, {
       x: 50,
-      y: state.y,
+      maxWidth: 495,
       size: 9,
       font: helvetica,
-      maxWidth: 450,
       lineHeight: 12,
-      wordBreaks: [' '],
     });
+    state.y -= conditionsHeight + 8;
   }
 
   // Footer
