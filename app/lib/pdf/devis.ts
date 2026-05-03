@@ -52,6 +52,27 @@ interface PDFState {
 
 // ─── UTILITIES ──────────────────────────────────────────────────────────
 
+/**
+ * Sanitize text for WinAnsi encoding (used by pdf-lib StandardFonts.Helvetica).
+ *
+ * Le bug d'origine : toLocaleString('fr-FR') injecte U+202F (NARROW NO-BREAK SPACE)
+ * comme séparateur de milliers / espace avant unité de devise, ce que pdf-lib refuse
+ * car StandardFonts.Helvetica est encodé WinAnsi (Latin-1 + extras), qui n'inclut
+ * pas U+202F. Cette fonction normalise tous les caractères Unicode "exotiques"
+ * fréquents en français vers leurs équivalents ASCII/Latin-1.
+ */
+function sanitizeForWinAnsi(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/[      ​⁠]/g, ' ') // espaces non-cassables / fins
+    .replace(/[‘’‚‛]/g, "'") // guillemets simples typographiques
+    .replace(/[“”„‟]/g, '"') // guillemets doubles typographiques
+    .replace(/[–—―]/g, '-')        // tirets demi-cadratin/cadratin
+    .replace(/…/g, '...')                    // ellipsis
+    .replace(/·/g, '.')                      // middle dot
+    .replace(/¨/g, '"');                     // diaeresis isolé
+}
+
 function formatPrice(cents: number): string {
   const euros = cents / 100;
   return euros.toLocaleString('fr-FR', {
@@ -116,6 +137,15 @@ function addText(
 
 function newPage(document: any, font?: any, boldFont?: any) {
   const page = document.addPage([595, 842]); // A4
+
+  // Wrap drawText to sanitize all text against WinAnsi encoding (Helvetica).
+  // Couvre toutes les sources : toLocaleString('fr-FR'), descriptions LLM, conditions
+  // saisies par l'artisan, etc. — sans avoir à modifier les ~30 appels drawText.
+  const originalDrawText = page.drawText.bind(page);
+  page.drawText = (text: string, options: any) => {
+    return originalDrawText(sanitizeForWinAnsi(text ?? ''), options);
+  };
+
   return { page, y: 800, document, font, boldFont };
 }
 
