@@ -138,7 +138,10 @@ export async function POST(req: NextRequest) {
     outcome = await orchestrate({
       client: {
         id: client.id,
-        plan: (client.plan || "ESSENTIEL") as PlanType,
+        // Pour les tests E2E on force le plan MAX afin d'avoir les 3 agents
+        // (ADMIN/MARKETING/COMMERCIAL) disponibles. Sinon force_agent peut
+        // être ignoré si le plan réel du client TRIAL est ESSENTIEL.
+        plan: "MAX" as PlanType,
         company: client.company,
         metier: client.metier,
         ville: client.ville,
